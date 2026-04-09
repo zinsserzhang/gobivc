@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GobiVC - 行业研究报告生成系统</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h1 class="logo">GobiVC</h1>
+                <p class="logo-sub">行业研究报告系统</p>
+            </div>
+            <nav class="sidebar-nav">
+                <button class="nav-btn active" data-view="create" onclick="switchView('create')">
+                    <span class="nav-icon">+</span>
+                    生成新报告
+                </button>
+                <button class="nav-btn" data-view="list" onclick="switchView('list')">
+                    <span class="nav-icon">&#9776;</span>
+                    报告列表
+                </button>
+            </nav>
+            <div class="sidebar-footer">
+                <p>Powered by Claude AI</p>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Create Report View -->
+            <div id="view-create" class="view active">
+                <div class="page-header">
+                    <h2>生成行业研究报告</h2>
+                    <p>配置研究参数，AI将为您生成专业的行业研究报告</p>
+                </div>
+
+                <form id="report-form" class="report-form" onsubmit="handleSubmit(event)">
+                    <div class="form-group">
+                        <label for="topic">研究主题 <span class="required">*</span></label>
+                        <input type="text" id="topic" name="topic"
+                               placeholder="例如：新能源汽车、人工智能、生物医药、半导体..."
+                               required>
+                        <span class="form-hint">输入您想研究的行业或细分领域</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="direction">研究方向</label>
+                        <input type="text" id="direction" name="direction"
+                               placeholder="例如：市场规模与增长趋势、竞争格局分析、技术发展路线...">
+                        <span class="form-hint">可选，指定报告的重点分析方向</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label>报告深度</label>
+                        <div class="depth-selector">
+                            <label class="depth-option">
+                                <input type="radio" name="depth" value="brief">
+                                <div class="depth-card">
+                                    <div class="depth-title">概览</div>
+                                    <div class="depth-desc">~2000字</div>
+                                    <div class="depth-detail">快速了解行业概况，适合初步调研</div>
+                                </div>
+                            </label>
+                            <label class="depth-option">
+                                <input type="radio" name="depth" value="standard" checked>
+                                <div class="depth-card">
+                                    <div class="depth-title">标准</div>
+                                    <div class="depth-desc">~5000字</div>
+                                    <div class="depth-detail">全面的行业分析，涵盖核心维度</div>
+                                </div>
+                            </label>
+                            <label class="depth-option">
+                                <input type="radio" name="depth" value="deep">
+                                <div class="depth-card">
+                                    <div class="depth-title">深度</div>
+                                    <div class="depth-desc">~10000字</div>
+                                    <div class="depth-detail">详尽的深度研究，适合投资决策</div>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="custom_notes">特别要求</label>
+                        <textarea id="custom_notes" name="custom_notes" rows="3"
+                                  placeholder="例如：请重点分析中国市场、关注2024年以来的最新动态、对比分析TOP5企业..."></textarea>
+                        <span class="form-hint">可选，添加任何您希望报告关注的特定方面</span>
+                    </div>
+
+                    <button type="submit" class="btn-primary btn-generate" id="btn-submit">
+                        生成报告
+                    </button>
+                </form>
+            </div>
+
+            <!-- Report List View -->
+            <div id="view-list" class="view">
+                <div class="page-header">
+                    <h2>报告列表</h2>
+                    <p>查看和管理已生成的行业研究报告</p>
+                    <button class="btn-secondary" onclick="loadReports()">刷新</button>
+                </div>
+                <div id="report-list" class="report-list">
+                    <div class="empty-state">
+                        <p>暂无报告，请先生成一份行业研究报告</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Report Detail View -->
+            <div id="view-detail" class="view">
+                <div class="page-header">
+                    <button class="btn-back" onclick="switchView('list')">&larr; 返回列表</button>
+                    <div id="detail-header"></div>
+                </div>
+                <div id="report-detail" class="report-detail">
+                </div>
+            </div>
+
+            <!-- Generating View -->
+            <div id="view-generating" class="view">
+                <div class="generating-container">
+                    <div class="spinner"></div>
+                    <h3>正在生成报告...</h3>
+                    <p id="generating-topic"></p>
+                    <p class="generating-hint">AI正在分析行业数据并撰写报告，请稍候</p>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progress-fill"></div>
+                    </div>
+                    <p class="generating-time" id="generating-time">已用时: 0秒</p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
