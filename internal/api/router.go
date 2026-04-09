@@ -22,6 +22,12 @@ func NewRouter(handler *Handler) http.Handler {
 	})
 
 	mux.HandleFunc("/api/reports/", func(w http.ResponseWriter, r *http.Request) {
+		// Check if this is a stream request: /api/reports/{id}/stream
+		if strings.HasSuffix(r.URL.Path, "/stream") {
+			handler.StreamReport(w, r)
+			return
+		}
+
 		switch r.Method {
 		case http.MethodGet:
 			handler.GetReport(w, r)
@@ -35,13 +41,9 @@ func NewRouter(handler *Handler) http.Handler {
 	// Static files
 	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("web/static"))))
 
-	// Serve index.html for the root path and any non-API paths (SPA fallback)
+	// Serve index.html for the root and non-API/non-static paths
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/" && !strings.HasPrefix(r.URL.Path, "/api/") && !strings.HasPrefix(r.URL.Path, "/static/") {
-			http.ServeFile(w, r, "web/templates/index.html")
-			return
-		}
-		if r.URL.Path == "/" {
+		if r.URL.Path == "/" || (!strings.HasPrefix(r.URL.Path, "/api/") && !strings.HasPrefix(r.URL.Path, "/static/")) {
 			http.ServeFile(w, r, "web/templates/index.html")
 			return
 		}

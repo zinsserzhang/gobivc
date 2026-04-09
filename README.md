@@ -16,7 +16,7 @@
 - **后端**: Go (标准库 `net/http`)
 - **前端**: 原生 HTML/CSS/JavaScript (无框架依赖)
 - **AI引擎**: Anthropic Claude API
-- **存储**: 内存存储 (可扩展至数据库)
+- **存储**: SQLite (WAL模式，持久化存储)
 
 ## 快速开始
 
@@ -75,7 +75,9 @@ go build -o gobivc cmd/server/main.go
 |------|------|------|
 | POST | `/api/reports` | 创建报告 |
 | GET | `/api/reports` | 获取报告列表 |
+| GET | `/api/reports?q=关键词` | 搜索报告 |
 | GET | `/api/reports/:id` | 获取报告详情 |
+| GET | `/api/reports/:id/stream` | SSE流式获取生成内容 |
 | DELETE | `/api/reports/:id` | 删除报告 |
 
 ### 创建报告请求示例
@@ -97,3 +99,17 @@ go build -o gobivc cmd/server/main.go
 | `ANTHROPIC_MODEL` | 否 | `claude-sonnet-4-20250514` | 使用的AI模型 |
 | `ANTHROPIC_BASE_URL` | 否 | `https://api.anthropic.com` | API地址(支持代理) |
 | `PORT` | 否 | `8080` | 服务端口 |
+| `DATA_DIR` | 否 | `./data` | SQLite数据库目录 |
+
+## Docker 部署
+
+```bash
+# 使用 docker-compose
+cp .env.example .env
+# 编辑 .env，填入 ANTHROPIC_API_KEY
+docker compose up -d
+
+# 或直接构建运行
+docker build -t gobivc .
+docker run -p 8080:8080 -e ANTHROPIC_API_KEY=sk-ant-xxxxx -v gobivc-data:/app/data gobivc
+```

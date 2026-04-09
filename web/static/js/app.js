@@ -5,6 +5,9 @@ let currentReportId = null;
 let pollTimer = null;
 let genStartTime = null;
 let genTimeTimer = null;
+let eventSource = null;
+let streamContent = '';
+let searchTimer = null;
 
 // ===== View Management =====
 
@@ -20,9 +23,9 @@ function switchView(view) {
         loadReports();
     }
 
-    // Clear any polling when navigating away from generating
     if (view !== 'generating') {
         stopPolling();
+        stopStream();
     }
 }
 
@@ -62,9 +65,17 @@ async function handleSubmit(event) {
 
         currentReportId = report.id;
         document.getElementById('generating-topic').textContent = topic;
+        document.getElementById('progress-fill').style.width = '0%';
+
+        // Reset stream output
+        streamContent = '';
+        document.getElementById('stream-output').innerHTML =
+            '<p class="stream-placeholder">AI 正在分析行业数据并撰写报告，内容将实时显示...</p>';
+
         switchView('generating');
-        startPolling(report.id);
         startGenTimer();
+        startStream(report.id);
+
         form.reset();
         form.querySelector('input[name="depth"][value="standard"]').checked = true;
     } catch (err) {
@@ -75,24 +86,96 @@ async function handleSubmit(event) {
     }
 }
 
-// ===== Polling for Report Status =====
+// ===== SSE Streaming =====
+
+function startStream(reportId) {
+    stopStream();
+    streamContent = '';
+
+    eventSource = new EventSource(API_BASE + '/reports/' + reportId + '/stream');
+
+    eventSource.onmessage = function(event) {
+        let data;
+        try {
+            data = JSON.parse(event.data);
+        } catch (e) {
+            return;
+        }
+
+        const outputEl = document.getElementById('stream-output');
+
+        switch (data.type) {
+            case 'start':
+                outputEl.innerHTML = '';
+                break;
+
+            case 'chunk':
+                streamContent += data.text;
+                outputEl.innerHTML = renderMarkdown(streamContent);
+                // Auto-scroll to bottom
+                outputEl.scrollTop = outputEl.scrollHeight;
+                // Update progress bar based on content length
+                updateStreamProgress();
+                break;
+
+            case 'content':
+                // Full content sent at once (already completed report)
+                streamContent = data.text;
+                outputEl.innerHTML = renderMarkdown(streamContent);
+                stopStream();
+                stopGenTimer();
+                setTimeout(() => viewReport(reportId), 300);
+                break;
+
+            case 'done':
+                document.getElementById('progress-fill').style.width = '100%';
+                stopStream();
+                stopGenTimer();
+                setTimeout(() => viewReport(reportId), 500);
+                break;
+
+            case 'error':
+                stopStream();
+                stopGenTimer();
+                alert('报告生成失败: ' + (data.message || '未知错误'));
+                switchView('create');
+                break;
+        }
+    };
+
+    eventSource.onerror = function() {
+        // SSE connection failed, fall back to polling
+        stopStream();
+        startPolling(reportId);
+    };
+}
+
+function stopStream() {
+    if (eventSource) {
+        eventSource.close();
+        eventSource = null;
+    }
+}
+
+function updateStreamProgress() {
+    // Estimate progress based on content length
+    const len = streamContent.length;
+    // Rough estimates: brief ~3k chars, standard ~7k, deep ~15k
+    const maxLen = 10000;
+    const progress = Math.min(92, (len / maxLen) * 100);
+    document.getElementById('progress-fill').style.width = progress + '%';
+}
+
+// ===== Polling Fallback =====
 
 function startPolling(reportId) {
     stopPolling();
-    let elapsed = 0;
     pollTimer = setInterval(async () => {
         try {
             const report = await apiCall('/reports/' + reportId);
-            elapsed++;
-            // Update progress bar (estimate: brief ~30s, standard ~60s, deep ~120s)
-            const maxTime = report.config.depth === 'brief' ? 30 : report.config.depth === 'deep' ? 120 : 60;
-            const progress = Math.min(95, (elapsed / maxTime) * 100);
-            document.getElementById('progress-fill').style.width = progress + '%';
-
             if (report.status === 'completed') {
-                document.getElementById('progress-fill').style.width = '100%';
                 stopPolling();
-                setTimeout(() => viewReport(reportId), 500);
+                setTimeout(() => viewReport(reportId), 300);
             } else if (report.status === 'failed') {
                 stopPolling();
                 alert('报告生成失败: ' + (report.error_msg || '未知错误'));
@@ -101,7 +184,7 @@ function startPolling(reportId) {
         } catch (err) {
             console.error('Polling error:', err);
         }
-    }, 2000);
+    }, 3000);
 }
 
 function stopPolling() {
@@ -109,35 +192,46 @@ function stopPolling() {
         clearInterval(pollTimer);
         pollTimer = null;
     }
+}
+
+function startGenTimer() {
+    stopGenTimer();
+    genStartTime = Date.now();
+    const el = document.getElementById('generating-time');
+    updateGenTime(el);
+    genTimeTimer = setInterval(() => updateGenTime(el), 1000);
+}
+
+function stopGenTimer() {
     if (genTimeTimer) {
         clearInterval(genTimeTimer);
         genTimeTimer = null;
     }
 }
 
-function startGenTimer() {
-    genStartTime = Date.now();
-    const el = document.getElementById('generating-time');
-    genTimeTimer = setInterval(() => {
-        const seconds = Math.floor((Date.now() - genStartTime) / 1000);
-        if (seconds < 60) {
-            el.textContent = `已用时: ${seconds}秒`;
-        } else {
-            const mins = Math.floor(seconds / 60);
-            const secs = seconds % 60;
-            el.textContent = `已用时: ${mins}分${secs}秒`;
-        }
-    }, 1000);
+function updateGenTime(el) {
+    if (!genStartTime) return;
+    const seconds = Math.floor((Date.now() - genStartTime) / 1000);
+    if (seconds < 60) {
+        el.textContent = `${seconds}秒`;
+    } else {
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        el.textContent = `${mins}分${secs}秒`;
+    }
 }
 
 // ===== Report List =====
 
-async function loadReports() {
+async function loadReports(query) {
     const container = document.getElementById('report-list');
     try {
-        const reports = await apiCall('/reports');
+        const url = query ? '/reports?q=' + encodeURIComponent(query) : '/reports';
+        const reports = await apiCall(url);
         if (!reports || reports.length === 0) {
-            container.innerHTML = '<div class="empty-state"><p>暂无报告，请先生成一份行业研究报告</p></div>';
+            container.innerHTML = query
+                ? '<div class="empty-state"><p>未找到匹配的报告</p></div>'
+                : '<div class="empty-state"><p>暂无报告，请先生成一份行业研究报告</p></div>';
             return;
         }
         container.innerHTML = reports.map(r => `
@@ -162,6 +256,16 @@ async function loadReports() {
     }
 }
 
+// ===== Search =====
+
+function debounceSearch() {
+    if (searchTimer) clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => {
+        const query = document.getElementById('search-input').value.trim();
+        loadReports(query || undefined);
+    }, 300);
+}
+
 // ===== Report Detail =====
 
 async function viewReport(id) {
@@ -170,9 +274,13 @@ async function viewReport(id) {
         if (report.status === 'generating' || report.status === 'pending') {
             currentReportId = id;
             document.getElementById('generating-topic').textContent = report.config.topic;
+            document.getElementById('progress-fill').style.width = '0%';
+            streamContent = '';
+            document.getElementById('stream-output').innerHTML =
+                '<p class="stream-placeholder">AI 正在分析行业数据并撰写报告，内容将实时显示...</p>';
             switchView('generating');
-            startPolling(id);
             startGenTimer();
+            startStream(id);
             return;
         }
 
@@ -271,11 +379,9 @@ function renderMarkdown(md) {
         }
         return '<tr>' + cells.map(c => `<td>${c}</td>`).join('') + '</tr>';
     });
-    // Wrap consecutive <tr> rows in table
     html = html.replace(/((<tr>.+<\/tr>\n?)+)/g, function(match) {
         let cleaned = match.replace(/<!--table-sep-->\n?/g, '');
         if (!cleaned.trim()) return '';
-        // Convert first row to th
         cleaned = cleaned.replace(/<tr>(.+?)<\/tr>/, function(m, inner) {
             return '<thead><tr>' + inner.replace(/<td>/g, '<th>').replace(/<\/td>/g, '</th>') + '</tr></thead><tbody>';
         });
@@ -296,7 +402,7 @@ function renderMarkdown(md) {
     // Inline code
     html = html.replace(/`(.+?)`/g, '<code>$1</code>');
 
-    // Paragraphs: wrap lines that aren't already HTML tags
+    // Paragraphs
     html = html.split('\n\n').map(block => {
         block = block.trim();
         if (!block) return '';

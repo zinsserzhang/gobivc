@@ -510,43 +510,76 @@ body {
     gap: 8px;
 }
 
-/* ===== Generating View ===== */
-.generating-container {
-    text-align: center;
-    padding: 80px 40px;
+/* ===== Search Box ===== */
+.list-toolbar {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    margin-top: 12px;
 }
 
-.spinner {
-    width: 48px;
-    height: 48px;
-    border: 4px solid var(--border);
+.search-box {
+    flex: 1;
+}
+
+.search-box input {
+    width: 100%;
+    padding: 8px 14px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 14px;
+    font-family: inherit;
+    transition: border-color 0.15s;
+}
+
+.search-box input:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px var(--primary-light);
+}
+
+/* ===== Generating View (Streaming) ===== */
+.generating-header {
+    background: var(--bg-white);
+    border-radius: var(--radius);
+    padding: 16px 24px;
+    margin-bottom: 16px;
+    box-shadow: var(--shadow);
+}
+
+.generating-status {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 14px;
+    margin-bottom: 12px;
+}
+
+.spinner-sm {
+    width: 18px;
+    height: 18px;
+    border: 2px solid var(--border);
     border-top-color: var(--primary);
     border-radius: 50%;
-    margin: 0 auto 24px;
     animation: spin 0.8s linear infinite;
+    flex-shrink: 0;
 }
 
 @keyframes spin {
     to { transform: rotate(360deg); }
 }
 
-.generating-container h3 {
-    font-size: 20px;
-    margin-bottom: 8px;
-}
-
-.generating-hint {
-    color: var(--text-secondary);
-    font-size: 14px;
-    margin-top: 8px;
+.generating-time {
+    font-size: 13px;
+    color: var(--text-light);
+    margin-left: auto;
 }
 
 .progress-bar {
-    width: 300px;
-    height: 4px;
+    width: 100%;
+    height: 3px;
     background: var(--border);
-    border-radius: 4px;
-    margin: 24px auto 16px;
+    border-radius: 3px;
     overflow: hidden;
 }
 
@@ -554,13 +587,18 @@ body {
     height: 100%;
     width: 0%;
     background: var(--primary);
-    border-radius: 4px;
+    border-radius: 3px;
     transition: width 0.5s ease;
 }
 
-.generating-time {
-    font-size: 13px;
+.stream-output {
+    min-height: 300px;
+}
+
+.stream-placeholder {
     color: var(--text-light);
+    text-align: center;
+    padding: 40px;
 }
 
 /* ===== Empty State ===== */

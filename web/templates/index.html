@@ -102,7 +102,13 @@
                 <div class="page-header">
                     <h2>报告列表</h2>
                     <p>查看和管理已生成的行业研究报告</p>
-                    <button class="btn-secondary" onclick="loadReports()">刷新</button>
+                    <div class="list-toolbar">
+                        <div class="search-box">
+                            <input type="text" id="search-input" placeholder="搜索报告主题、内容..."
+                                   oninput="debounceSearch()">
+                        </div>
+                        <button class="btn-secondary" onclick="loadReports()">刷新</button>
+                    </div>
                 </div>
                 <div id="report-list" class="report-list">
                     <div class="empty-state">
@@ -121,17 +127,20 @@
                 </div>
             </div>
 
-            <!-- Generating View -->
+            <!-- Generating View (with live streaming) -->
             <div id="view-generating" class="view">
-                <div class="generating-container">
-                    <div class="spinner"></div>
-                    <h3>正在生成报告...</h3>
-                    <p id="generating-topic"></p>
-                    <p class="generating-hint">AI正在分析行业数据并撰写报告，请稍候</p>
+                <div class="generating-header">
+                    <div class="generating-status">
+                        <div class="spinner-sm"></div>
+                        <span>正在生成: <strong id="generating-topic"></strong></span>
+                        <span class="generating-time" id="generating-time">0秒</span>
+                    </div>
                     <div class="progress-bar">
                         <div class="progress-fill" id="progress-fill"></div>
                     </div>
-                    <p class="generating-time" id="generating-time">已用时: 0秒</p>
+                </div>
+                <div id="stream-output" class="report-detail stream-output">
+                    <p class="stream-placeholder">AI 正在分析行业数据并撰写报告，内容将实时显示...</p>
                 </div>
             </div>
         </main>
