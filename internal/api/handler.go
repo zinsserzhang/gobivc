@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/zinsserzhang/gobivc/internal/model"
 	"github.com/zinsserzhang/gobivc/internal/service"
@@ -30,6 +31,14 @@ func jsonResponse(w http.ResponseWriter, status int, data any) {
 // errorResponse writes a JSON error response.
 func errorResponse(w http.ResponseWriter, status int, message string) {
 	jsonResponse(w, status, map[string]string{"error": message})
+}
+
+// Health handles GET /health and /api/health
+func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
+	jsonResponse(w, http.StatusOK, map[string]any{
+		"status": "ok",
+		"time":   time.Now().UTC().Format(time.RFC3339),
+	})
 }
 
 // CreateReport handles POST /api/reports

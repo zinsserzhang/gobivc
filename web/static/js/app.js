@@ -1,6 +1,7 @@
 // ===== GobiVC Frontend Application =====
 
 const API_BASE = '/api';
+const TOKEN_KEY = 'gobivc_api_token';
 let currentReportId = null;
 let pollTimer = null;
 let genStartTime = null;
@@ -8,6 +9,32 @@ let genTimeTimer = null;
 let eventSource = null;
 let streamContent = '';
 let searchTimer = null;
+
+// ===== API Token Management =====
+
+function getApiToken() {
+    return localStorage.getItem(TOKEN_KEY) || '';
+}
+
+function setApiToken(token) {
+    if (token) {
+        localStorage.setItem(TOKEN_KEY, token);
+    } else {
+        localStorage.removeItem(TOKEN_KEY);
+    }
+}
+
+function promptForToken() {
+    const current = getApiToken();
+    const token = prompt('请输入 API Token (留空表示未启用鉴权):', current);
+    if (token !== null) {
+        setApiToken(token.trim());
+        alert('Token 已保存');
+        if (document.getElementById('view-list').classList.contains('active')) {
+            loadReports();
+        }
+    }
+}
 
 // ===== View Management =====
 
@@ -32,12 +59,17 @@ function switchView(view) {
 // ===== API Calls =====
 
 async function apiCall(url, options = {}) {
-    const resp = await fetch(API_BASE + url, {
-        headers: { 'Content-Type': 'application/json' },
-        ...options,
-    });
+    const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
+    const token = getApiToken();
+    if (token) {
+        headers['Authorization'] = 'Bearer ' + token;
+    }
+    const resp = await fetch(API_BASE + url, { ...options, headers });
     const data = await resp.json();
     if (!resp.ok) {
+        if (resp.status === 401) {
+            throw new Error('未授权：请配置正确的 API Token');
+        }
         throw new Error(data.error || 'API request failed');
     }
     return data;
@@ -92,7 +124,13 @@ function startStream(reportId) {
     stopStream();
     streamContent = '';
 
-    eventSource = new EventSource(API_BASE + '/reports/' + reportId + '/stream');
+    // EventSource doesn't support custom headers, pass token via query param
+    const token = getApiToken();
+    let streamUrl = API_BASE + '/reports/' + reportId + '/stream';
+    if (token) {
+        streamUrl += '?token=' + encodeURIComponent(token);
+    }
+    eventSource = new EventSource(streamUrl);
 
     eventSource.onmessage = function(event) {
         let data;

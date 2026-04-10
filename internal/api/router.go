@@ -9,6 +9,10 @@ import (
 func NewRouter(handler *Handler) http.Handler {
 	mux := http.NewServeMux()
 
+	// Health check (unauthenticated)
+	mux.HandleFunc("/health", handler.Health)
+	mux.HandleFunc("/api/health", handler.Health)
+
 	// API routes
 	mux.HandleFunc("/api/reports", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
@@ -22,7 +26,7 @@ func NewRouter(handler *Handler) http.Handler {
 	})
 
 	mux.HandleFunc("/api/reports/", func(w http.ResponseWriter, r *http.Request) {
-		// Check if this is a stream request: /api/reports/{id}/stream
+		// Stream endpoint: /api/reports/{id}/stream
 		if strings.HasSuffix(r.URL.Path, "/stream") {
 			handler.StreamReport(w, r)
 			return
@@ -43,7 +47,7 @@ func NewRouter(handler *Handler) http.Handler {
 
 	// Serve index.html for the root and non-API/non-static paths
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/" || (!strings.HasPrefix(r.URL.Path, "/api/") && !strings.HasPrefix(r.URL.Path, "/static/")) {
+		if r.URL.Path == "/" || (!strings.HasPrefix(r.URL.Path, "/api/") && !strings.HasPrefix(r.URL.Path, "/static/") && r.URL.Path != "/health") {
 			http.ServeFile(w, r, "web/templates/index.html")
 			return
 		}

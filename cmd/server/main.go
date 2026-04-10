@@ -1,10 +1,14 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"syscall"
+	"time"
 
 	"github.com/zinsserzhang/gobivc/internal/api"
 	"github.com/zinsserzhang/gobivc/internal/config"
@@ -16,12 +20,11 @@ func main() {
 	cfg := config.Load()
 
 	// Initialize storage
-	dataDir := getEnvOrDefault("DATA_DIR", "./data")
-	if err := os.MkdirAll(dataDir, 0755); err != nil {
+	if err := os.MkdirAll(cfg.DataDir, 0755); err != nil {
 		log.Fatalf("Failed to create data directory: %v", err)
 	}
 
-	dbPath := filepath.Join(dataDir, "gobivc.db")
+	dbPath := filepath.Join(cfg.DataDir, "gobivc.db")
 	sqliteStore, err := store.NewSQLiteStore(dbPath)
 	if err != nil {
 		log.Fatalf("Failed to initialize database: %v", err)
@@ -47,19 +50,46 @@ func main() {
 	handler := api.NewHandler(reportService)
 	router := api.NewRouter(handler)
 
+	// Apply middleware chain
+	httpHandler := api.Chain(
+		router,
+		api.RecoverMiddleware,
+		api.LoggingMiddleware,
+		api.CORSMiddleware(cfg.AllowedOrigin),
+		api.AuthMiddleware(cfg.APIToken),
+	)
+
 	addr := ":" + cfg.Port
-	log.Printf("GobiVC server starting on http://localhost%s", addr)
-	log.Printf("Using AI model: %s", cfg.AnthropicModel)
-	log.Printf("Database: %s", dbPath)
-
-	if err := http.ListenAndServe(addr, router); err != nil {
-		log.Fatalf("Server failed: %v", err)
+	srv := &http.Server{
+		Addr:              addr,
+		Handler:           httpHandler,
+		ReadHeaderTimeout: 10 * time.Second,
+		// Long write timeout for streaming
+		WriteTimeout: 15 * time.Minute,
+		IdleTimeout:  2 * time.Minute,
 	}
-}
 
-func getEnvOrDefault(key, defaultVal string) string {
-	if val := os.Getenv(key); val != "" {
-		return val
+	// Start server in a goroutine
+	go func() {
+		log.Printf("GobiVC server starting on http://localhost%s", addr)
+		log.Printf("AI model: %s", cfg.AnthropicModel)
+		log.Printf("Database: %s", dbPath)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Server failed: %v", err)
+		}
+	}()
+
+	// Wait for interrupt signal for graceful shutdown
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	log.Println("Shutting down server...")
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Printf("Server forced to shutdown: %v", err)
 	}
-	return defaultVal
+	log.Println("Server exited")
 }

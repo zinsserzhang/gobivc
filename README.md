@@ -113,3 +113,23 @@ docker compose up -d
 docker build -t gobivc .
 docker run -p 8080:8080 -e ANTHROPIC_API_KEY=sk-ant-xxxxx -v gobivc-data:/app/data gobivc
 ```
+
+## 云端部署
+
+详细的云端部署指南见 [deploy/CLOUD.md](deploy/CLOUD.md)，涵盖：
+
+- **VPS + Docker** (阿里云 ECS / 腾讯云 CVM / AWS EC2)
+- **Kubernetes** (阿里云 ACK / 腾讯云 TKE / AWS EKS / GCP GKE) - 提供完整 K8s 清单
+- **阿里云 Serverless 应用引擎 (SAE)**
+- **腾讯云 Cloud Run / 云托管**
+- **AWS ECS Fargate**
+- **Google Cloud Run**
+
+关键云端特性：
+- 纯 Go 构建 (CGO_ENABLED=0)，镜像 < 20MB，多架构 (amd64/arm64)
+- 健康检查端点 `/health`
+- 优雅关闭 (SIGTERM)
+- 可选 Bearer Token 鉴权 (`API_TOKEN` 环境变量)
+- CORS 可配置
+- SSE 流式输出支持 (Ingress 需要关闭 proxy_buffering)
+- GitHub Actions 自动构建 & 推送镜像到 GHCR
