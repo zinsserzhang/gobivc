@@ -45,7 +45,8 @@ type openaiRequest struct {
 	Model       string          `json:"model"`
 	Messages    []openaiMessage `json:"messages"`
 	MaxTokens   int             `json:"max_tokens,omitempty"`
-	Temperature float64         `json:"temperature,omitempty"`
+	Temperature float64         `json:"temperature"`
+	TopP        float64         `json:"top_p,omitempty"`
 	Stream      bool            `json:"stream,omitempty"`
 }
 
@@ -73,7 +74,8 @@ func (g *OpenAIGenerator) Generate(ctx context.Context, config model.ReportConfi
 		Model:       g.Model,
 		Messages:    messages,
 		MaxTokens:   maxTokens,
-		Temperature: 0.7,
+		Temperature: 1.0,
+		TopP:        0.95,
 		Stream:      false,
 	}
 
@@ -130,7 +132,8 @@ func (g *OpenAIGenerator) GenerateStream(ctx context.Context, config model.Repor
 		Model:       g.Model,
 		Messages:    messages,
 		MaxTokens:   maxTokens,
-		Temperature: 0.7,
+		Temperature: 1.0,
+		TopP:        0.95,
 		Stream:      true,
 	}
 

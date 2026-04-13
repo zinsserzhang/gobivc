@@ -47,8 +47,8 @@ PROVIDER_CHOICE=${PROVIDER_CHOICE:-1}
 case "$PROVIDER_CHOICE" in
     1)
         AI_PROVIDER="openai"
-        DEFAULT_MODEL="MiniMax-Text-01"
-        DEFAULT_BASE_URL="https://api.minimax.chat/v1"
+        DEFAULT_MODEL="MiniMax-M2.7"
+        DEFAULT_BASE_URL="https://api.minimaxi.com/v1"
         PROVIDER_NAME="MiniMax"
         ;;
     2)

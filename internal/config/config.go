@@ -52,8 +52,8 @@ func Load() *Config {
 		// OpenAI-compatible (MiniMax, DeepSeek, OpenAI, etc.)
 		cfg.AIProvider = ProviderOpenAI
 		cfg.AIAPIKey = firstNonEmpty(os.Getenv("AI_API_KEY"), os.Getenv("ANTHROPIC_API_KEY"))
-		cfg.AIModel = firstNonEmpty(os.Getenv("AI_MODEL"), os.Getenv("ANTHROPIC_MODEL"), "MiniMax-Text-01")
-		cfg.AIBaseURL = firstNonEmpty(os.Getenv("AI_BASE_URL"), os.Getenv("ANTHROPIC_BASE_URL"), "https://api.minimax.chat/v1")
+		cfg.AIModel = firstNonEmpty(os.Getenv("AI_MODEL"), os.Getenv("ANTHROPIC_MODEL"), "MiniMax-M2.7")
+		cfg.AIBaseURL = firstNonEmpty(os.Getenv("AI_BASE_URL"), os.Getenv("ANTHROPIC_BASE_URL"), "https://api.minimaxi.com/v1")
 		if cfg.AIAPIKey == "" {
 			log.Println("WARNING: AI_API_KEY is not set.")
 		}
