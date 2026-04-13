@@ -35,24 +35,77 @@ echo ""
 log "请提供以下配置信息："
 echo ""
 
-read -r -p "$(echo -e ${YELLOW}'[1/3]'${NC}) 请输入你的 Anthropic API Key (sk-ant-...): " ANTHROPIC_API_KEY
-if [ -z "$ANTHROPIC_API_KEY" ]; then
+echo "  支持的 AI 服务商："
+echo "  1) MiniMax  (默认，api.minimax.chat)"
+echo "  2) DeepSeek (api.deepseek.com)"
+echo "  3) Claude   (api.anthropic.com)"
+echo "  4) 其他 OpenAI 兼容接口"
+echo ""
+read -r -p "$(echo -e ${YELLOW}'[1/5]'${NC}) 选择 AI 服务商 [1-4] (直接回车选1): " PROVIDER_CHOICE
+PROVIDER_CHOICE=${PROVIDER_CHOICE:-1}
+
+case "$PROVIDER_CHOICE" in
+    1)
+        AI_PROVIDER="openai"
+        DEFAULT_MODEL="MiniMax-Text-01"
+        DEFAULT_BASE_URL="https://api.minimax.chat/v1"
+        PROVIDER_NAME="MiniMax"
+        ;;
+    2)
+        AI_PROVIDER="openai"
+        DEFAULT_MODEL="deepseek-chat"
+        DEFAULT_BASE_URL="https://api.deepseek.com/v1"
+        PROVIDER_NAME="DeepSeek"
+        ;;
+    3)
+        AI_PROVIDER="claude"
+        DEFAULT_MODEL="claude-sonnet-4-20250514"
+        DEFAULT_BASE_URL="https://api.anthropic.com"
+        PROVIDER_NAME="Claude"
+        ;;
+    4)
+        AI_PROVIDER="openai"
+        DEFAULT_MODEL=""
+        DEFAULT_BASE_URL=""
+        PROVIDER_NAME="自定义"
+        ;;
+    *)
+        err "无效选择"
+        ;;
+esac
+
+read -r -p "$(echo -e ${YELLOW}'[2/5]'${NC}) 请输入 ${PROVIDER_NAME} API Key: " AI_API_KEY
+if [ -z "$AI_API_KEY" ]; then
     err "API Key 不能为空"
 fi
 
-read -r -p "$(echo -e ${YELLOW}'[2/3]'${NC}) 请输入你的域名 (没有则留空，使用IP访问): " DOMAIN_NAME
+read -r -p "$(echo -e ${YELLOW}'[3/5]'${NC}) 请输入模型名称 (直接回车使用 ${DEFAULT_MODEL:-'需要填写'}): " AI_MODEL
+AI_MODEL=${AI_MODEL:-$DEFAULT_MODEL}
+if [ -z "$AI_MODEL" ]; then
+    err "模型名称不能为空"
+fi
 
-read -r -p "$(echo -e ${YELLOW}'[3/3]'${NC}) 请输入 Claude 模型名称 (直接回车使用默认 claude-sonnet-4-20250514): " AI_MODEL
-AI_MODEL=${AI_MODEL:-claude-sonnet-4-20250514}
+if [ "$PROVIDER_CHOICE" = "4" ]; then
+    read -r -p "$(echo -e ${YELLOW}'[3.5/5]'${NC}) 请输入 API Base URL (如 https://api.example.com/v1): " AI_BASE_URL
+    if [ -z "$AI_BASE_URL" ]; then
+        err "Base URL 不能为空"
+    fi
+else
+    AI_BASE_URL="$DEFAULT_BASE_URL"
+fi
+
+read -r -p "$(echo -e ${YELLOW}'[4/5]'${NC}) 请输入你的域名 (没有则留空，使用IP访问): " DOMAIN_NAME
 
 # 自动生成 API Token
 API_TOKEN=$(openssl rand -hex 32)
 
 echo ""
 log "配置确认："
-echo "  - API Key:  ${ANTHROPIC_API_KEY:0:12}..."
+echo "  - 服务商:   ${PROVIDER_NAME}"
+echo "  - API Key:  ${AI_API_KEY:0:12}..."
+echo "  - 模型:     ${AI_MODEL}"
+echo "  - Base URL: ${AI_BASE_URL}"
 echo "  - 域名:     ${DOMAIN_NAME:-'无 (使用 IP 访问)'}"
-echo "  - AI 模型:  $AI_MODEL"
 echo "  - API Token: ${API_TOKEN:0:16}..."
 echo ""
 read -r -p "确认开始部署? (y/N): " CONFIRM
@@ -107,8 +160,10 @@ git checkout claude/industry-report-generator-qIVST
 
 log "[4/6] 写入配置文件..."
 cat > "$INSTALL_DIR/.env" << ENVEOF
-ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-ANTHROPIC_MODEL=${AI_MODEL}
+AI_PROVIDER=${AI_PROVIDER}
+AI_API_KEY=${AI_API_KEY}
+AI_MODEL=${AI_MODEL}
+AI_BASE_URL=${AI_BASE_URL}
 API_TOKEN=${API_TOKEN}
 PORT=8080
 DATA_DIR=/app/data
@@ -281,7 +336,9 @@ cat > /opt/gobivc/DEPLOY_INFO << INFOEOF
 部署时间: $(date)
 访问地址: ${DOMAIN_NAME:-$PUBLIC_IP}
 API Token: ${API_TOKEN}
+AI 服务商: ${PROVIDER_NAME}
 AI 模型:   ${AI_MODEL}
+API 地址:  ${AI_BASE_URL}
 数据目录: /opt/gobivc/data
 备份目录: /opt/gobivc-backups
 INFOEOF

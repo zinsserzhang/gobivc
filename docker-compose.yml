@@ -4,9 +4,18 @@ services:
     ports:
       - "8080:8080"
     environment:
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - ANTHROPIC_MODEL=${ANTHROPIC_MODEL:-claude-sonnet-4-20250514}
+      - AI_PROVIDER=${AI_PROVIDER:-openai}
+      - AI_API_KEY=${AI_API_KEY}
+      - AI_MODEL=${AI_MODEL:-MiniMax-Text-01}
+      - AI_BASE_URL=${AI_BASE_URL:-https://api.minimax.chat/v1}
+      - API_TOKEN=${API_TOKEN}
+      - ALLOWED_ORIGIN=${ALLOWED_ORIGIN:-*}
       - PORT=8080
+      - DATA_DIR=/app/data
+      # Legacy Claude support (when AI_PROVIDER=claude)
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - ANTHROPIC_MODEL=${ANTHROPIC_MODEL}
+      - ANTHROPIC_BASE_URL=${ANTHROPIC_BASE_URL}
     volumes:
       - gobivc-data:/app/data
     restart: unless-stopped

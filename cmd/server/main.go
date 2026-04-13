@@ -36,12 +36,14 @@ func main() {
 		log.Printf("WARNING: failed to recover pending reports: %v", err)
 	}
 
-	// Initialize AI generator
-	generator := service.NewClaudeGenerator(
-		cfg.AnthropicAPIKey,
-		cfg.AnthropicModel,
-		cfg.AnthropicBaseURL,
-	)
+	// Initialize AI generator based on provider
+	var generator service.AIGenerator
+	switch cfg.AIProvider {
+	case config.ProviderClaude:
+		generator = service.NewClaudeGenerator(cfg.AIAPIKey, cfg.AIModel, cfg.AIBaseURL)
+	default:
+		generator = service.NewOpenAIGenerator(cfg.AIAPIKey, cfg.AIModel, cfg.AIBaseURL)
+	}
 
 	// Initialize service layer
 	reportService := service.NewReportService(sqliteStore, generator)
@@ -72,7 +74,7 @@ func main() {
 	// Start server in a goroutine
 	go func() {
 		log.Printf("GobiVC server starting on http://localhost%s", addr)
-		log.Printf("AI model: %s", cfg.AnthropicModel)
+		log.Printf("AI provider: %s, model: %s", cfg.AIProvider, cfg.AIModel)
 		log.Printf("Database: %s", dbPath)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("Server failed: %v", err)
