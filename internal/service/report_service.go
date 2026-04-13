@@ -208,12 +208,10 @@ func (s *ReportService) generateReport(id string) {
 func buildTitle(config model.ReportConfig) string {
 	typeName := "行业研究报告"
 	switch config.ReportType {
-	case model.TypeDDChecklist:
-		typeName = "尽调清单"
+	case model.TypePreDD:
+		typeName = "Pre-DD 尽调"
 	case model.TypeInvestmentMemo:
 		typeName = "立项报告"
-	case model.TypeQuestions:
-		typeName = "核心问题关注"
 	}
 	return config.Topic + " - " + typeName
 }

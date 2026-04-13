@@ -6,10 +6,9 @@ import "time"
 type ReportType string
 
 const (
+	TypePreDD          ReportType = "predd"     // Pre-DD 尽调（含尽调清单+核心问题）
+	TypeInvestmentMemo ReportType = "memo"      // 立项报告
 	TypeIndustryReport ReportType = "industry"  // 行业研究报告
-	TypeDDChecklist    ReportType = "checklist"  // 投资尽调清单
-	TypeInvestmentMemo ReportType = "memo"       // 投资备忘录/立项材料
-	TypeQuestions      ReportType = "questions"  // 核心问题关注
 )
 
 // ReportDepth defines the analysis depth.
@@ -89,7 +88,7 @@ func (r *CreateReportRequest) Validate() string {
 		return "topic is required"
 	}
 	switch r.ReportType {
-	case TypeIndustryReport, TypeDDChecklist, TypeInvestmentMemo, TypeQuestions:
+	case TypePreDD, TypeInvestmentMemo, TypeIndustryReport:
 		// valid
 	case "":
 		r.ReportType = TypeIndustryReport

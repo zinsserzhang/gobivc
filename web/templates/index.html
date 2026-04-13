@@ -15,21 +15,17 @@
             </div>
             <nav class="sidebar-nav">
                 <div class="nav-section-label">生成</div>
-                <button class="nav-btn active" data-view="create-industry" onclick="openCreate('industry')">
-                    <span class="nav-icon">&#128202;</span>
-                    <span class="nav-text">行业研究报告</span>
+                <button class="nav-btn active" data-view="create-predd" onclick="openCreate('predd')">
+                    <span class="nav-icon">&#9745;</span>
+                    <span class="nav-text">Pre-DD 尽调</span>
                 </button>
                 <button class="nav-btn" data-view="create-memo" onclick="openCreate('memo')">
                     <span class="nav-icon">&#128221;</span>
                     <span class="nav-text">立项报告</span>
                 </button>
-                <button class="nav-btn" data-view="create-checklist" onclick="openCreate('checklist')">
-                    <span class="nav-icon">&#9745;</span>
-                    <span class="nav-text">尽调清单</span>
-                </button>
-                <button class="nav-btn" data-view="create-questions" onclick="openCreate('questions')">
-                    <span class="nav-icon">&#128270;</span>
-                    <span class="nav-text">核心问题关注</span>
+                <button class="nav-btn" data-view="create-industry" onclick="openCreate('industry')">
+                    <span class="nav-icon">&#128202;</span>
+                    <span class="nav-text">行业研究报告</span>
                 </button>
 
                 <div class="nav-section-label" style="margin-top:16px">管理</div>
@@ -188,10 +184,9 @@
                 <!-- Type tabs -->
                 <div class="type-tabs" id="type-tabs">
                     <button class="type-tab active" data-type="" onclick="filterByType('')">全部</button>
-                    <button class="type-tab" data-type="industry" onclick="filterByType('industry')">&#128202; 行业研究</button>
+                    <button class="type-tab" data-type="predd" onclick="filterByType('predd')">&#9745; Pre-DD 尽调</button>
                     <button class="type-tab" data-type="memo" onclick="filterByType('memo')">&#128221; 立项报告</button>
-                    <button class="type-tab" data-type="checklist" onclick="filterByType('checklist')">&#9745; 尽调清单</button>
-                    <button class="type-tab" data-type="questions" onclick="filterByType('questions')">&#128270; 核心问题</button>
+                    <button class="type-tab" data-type="industry" onclick="filterByType('industry')">&#128202; 行业研究</button>
                 </div>
                 <div class="list-toolbar">
                     <div class="search-box">

@@ -80,10 +80,9 @@ function switchView(view) {
 // Open create view for a specific report type
 function openCreate(type) {
     const cfg = {
-        industry:  { title: '行业研究报告', desc: '配置研究参数，AI 将为您生成专业的行业研究报告', topicLabel: '研究主题', topicPh: '输入行业或细分领域...', dirLabel: '研究方向', dirPh: '例如：市场规模与增长趋势、竞争格局分析...', dirHint: '可选，指定报告的重点分析方向', showFiles: false, showSuggestions: true },
-        memo:      { title: '立项报告', desc: '基于项目材料生成投委会立项报告 / 投资备忘录', topicLabel: '项目名称', topicPh: '例如：XX科技 A轮融资项目...', dirLabel: '侧重方向', dirPh: '例如：重点分析商业模式和财务数据...', dirHint: '可选，指定报告侧重的分析方向', showFiles: true, showSuggestions: false },
-        checklist: { title: '尽调清单', desc: '基于项目材料生成投资尽职调查清单', topicLabel: '项目名称', topicPh: '例如：XX科技 A轮融资项目...', dirLabel: '侧重方向', dirPh: '例如：重点关注财务真实性和合规风险...', dirHint: '可选，指定尽调重点关注领域', showFiles: true, showSuggestions: false },
-        questions: { title: '核心问题关注', desc: '基于项目材料梳理投资决策的核心问题', topicLabel: '项目名称', topicPh: '例如：XX科技 A轮融资项目...', dirLabel: '关注领域', dirPh: '例如：技术壁垒、团队稳定性、客户集中度...', dirHint: '可选，指定需要重点关注的问题领域', showFiles: true, showSuggestions: false },
+        predd:    { title: 'Pre-DD 尽调', desc: '基于项目材料生成尽调清单与核心问题关注', topicLabel: '项目名称', topicPh: '例如：XX科技 A轮融资项目...', dirLabel: '侧重方向', dirPh: '例如：重点关注财务真实性和合规风险...', dirHint: '可选，指定尽调重点关注领域', showFiles: true, showSuggestions: false },
+        memo:     { title: '立项报告', desc: '基于项目材料生成投委会立项报告 / 投资备忘录', topicLabel: '项目名称', topicPh: '例如：XX科技 A轮融资项目...', dirLabel: '侧重方向', dirPh: '例如：重点分析商业模式和财务数据...', dirHint: '可选，指定报告侧重的分析方向', showFiles: true, showSuggestions: false },
+        industry: { title: '行业研究报告', desc: '配置研究参数，AI 将为您生成专业的行业研究报告', topicLabel: '研究主题', topicPh: '输入行业或细分领域...', dirLabel: '研究方向', dirPh: '例如：市场规模与增长趋势、竞争格局分析...', dirHint: '可选，指定报告的重点分析方向', showFiles: false, showSuggestions: true },
     };
 
     const c = cfg[type] || cfg.industry;
@@ -405,7 +404,14 @@ function applyFilters() {
 
     let filtered = [...allReports];
 
-    if (currentTypeFilter) filtered = filtered.filter(r => (r.report_type || 'industry') === currentTypeFilter);
+    if (currentTypeFilter) {
+        if (currentTypeFilter === 'predd') {
+            // Match predd, checklist, questions (backward compat)
+            filtered = filtered.filter(r => ['predd','checklist','questions'].includes(r.report_type || ''));
+        } else {
+            filtered = filtered.filter(r => (r.report_type || 'industry') === currentTypeFilter);
+        }
+    }
     if (statusFilter) filtered = filtered.filter(r => r.status === statusFilter);
 
     filtered.sort((a, b) => {
@@ -651,7 +657,7 @@ function statusLabel(s) {
 }
 
 function reportTypeLabel(t) {
-    return { industry: '行业研究', checklist: '尽调清单', memo: '立项报告', questions: '核心问题' }[t] || t || '行业研究';
+    return { predd: 'Pre-DD 尽调', memo: '立项报告', industry: '行业研究' }[t] || t || '行业研究';
 }
 
 function depthLabel(d) {

@@ -133,16 +133,20 @@ func (g *ClaudeGenerator) Generate(ctx context.Context, config model.ReportConfi
 
 func buildSystemPrompt(config model.ReportConfig) string {
 	switch config.ReportType {
-	case model.TypeDDChecklist:
-		return `你是一位顶级风险投资机构的投资总监，拥有丰富的投资尽职调查经验。你需要根据提供的项目材料（BP、Datapack等），生成一份专业的投资尽调清单。
+	case model.TypePreDD:
+		return `你是一位顶级风险投资机构的投资总监，拥有丰富的投资尽职调查经验。你需要根据提供的项目材料（BP、Datapack等），生成一份完整的Pre-DD（预尽调）报告。
 
-要求：
+报告要求：
 1. 使用Markdown格式输出
-2. 基于提供的项目材料内容，针对性地生成尽调要点
-3. 涵盖尽调的各个维度，标注优先级和关键风险点
-4. 使用中文撰写
+2. 基于提供的项目材料内容，针对性地分析
+3. 涵盖尽调清单和核心问题两大部分
+4. 标注优先级和关键风险点
+5. 使用中文撰写
 
-尽调清单应涵盖以下维度（根据项目类型可调整）：
+报告分为两大部分：
+
+## 第一部分：尽调清单
+涵盖以下维度（根据项目类型调整详略），每个维度列出具体尽调事项、需获取的文件/数据、建议访谈对象、风险等级（高/中/低）：
 - 公司基本情况核实
 - 业务模式与商业逻辑验证
 - 财务数据核实与分析
@@ -156,7 +160,18 @@ func buildSystemPrompt(config model.ReportConfig) string {
 - 估值合理性分析
 - 交易结构建议
 
-每个维度下列出具体的尽调事项、需要获取的文件/数据、访谈对象、以及该项的风险等级（高/中/低）。`
+## 第二部分：核心问题关注
+基于项目材料，从投资决策角度梳理必须重点验证的核心问题：
+- 商业模式核心假设是否成立
+- 市场规模和增长逻辑的关键疑问
+- 技术/产品的核心风险
+- 财务数据中的异常和疑点
+- 团队能力和稳定性
+- 竞争壁垒的可持续性
+- 监管和合规风险
+- 估值合理性
+
+每个核心问题请给出：问题描述、为什么重要、建议的验证方式、风险等级（关键/重要/一般）。`
 
 	case model.TypeInvestmentMemo:
 		return `你是一位顶级风险投资机构的投资经理，擅长撰写投资备忘录和立项材料。你需要根据提供的项目材料（BP、Datapack等），生成一份可供投委会审议的投资备忘录。
@@ -182,30 +197,6 @@ func buildSystemPrompt(config model.ReportConfig) string {
 - 主要风险与缓释措施
 - 退出路径分析
 - 投资建议与结论`
-
-	case model.TypeQuestions:
-		return `你是一位顶级风险投资机构的合伙人，擅长从投资决策角度提炼核心问题。你需要根据提供的项目材料，梳理出投资该项目时需要重点关注和验证的核心问题。
-
-要求：
-1. 使用Markdown格式输出
-2. 基于提供的项目材料，发现潜在问题和需要验证的假设
-3. 每个问题说明为什么重要、如何验证、潜在风险
-4. 区分优先级（关键/重要/一般）
-5. 使用中文撰写
-
-核心问题应涵盖以下方面：
-- 商业模式核心假设验证
-- 市场规模和增长逻辑的关键问题
-- 技术/产品的核心风险点
-- 财务数据中的异常和疑问
-- 团队能力和稳定性
-- 竞争壁垒的可持续性
-- 客户获取和留存的关键问题
-- 监管和合规风险
-- 估值合理性
-- 退出路径可行性
-
-对每个问题，请给出：问题描述、重要性说明、建议的验证方式、风险等级。`
 
 	default:
 		return `你是一位顶级的风险投资行业研究分析师，拥有丰富的行业研究和投资分析经验。你需要生成专业、严谨、有深度的行业研究报告。
@@ -237,12 +228,10 @@ func buildUserPrompt(config model.ReportConfig) string {
 	var sb strings.Builder
 
 	switch config.ReportType {
-	case model.TypeDDChecklist:
-		sb.WriteString(fmt.Sprintf("请为「%s」项目生成一份投资尽职调查清单。\n\n", config.Topic))
+	case model.TypePreDD:
+		sb.WriteString(fmt.Sprintf("请为「%s」项目生成一份完整的 Pre-DD 尽调报告，包含尽调清单和核心问题关注两大部分。\n\n", config.Topic))
 	case model.TypeInvestmentMemo:
 		sb.WriteString(fmt.Sprintf("请为「%s」项目撰写一份投资备忘录（立项材料）。\n\n", config.Topic))
-	case model.TypeQuestions:
-		sb.WriteString(fmt.Sprintf("请为「%s」项目梳理投资决策的核心问题关注清单。\n\n", config.Topic))
 	default:
 		sb.WriteString(fmt.Sprintf("请为我撰写一份关于「%s」的行业研究报告。\n\n", config.Topic))
 	}
