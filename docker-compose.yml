@@ -12,16 +12,14 @@ services:
       - ALLOWED_ORIGIN=${ALLOWED_ORIGIN:-*}
       - PORT=8080
       - DATA_DIR=/app/data
-      # Feishu integration (optional)
-      - FEISHU_APP_ID=${FEISHU_APP_ID}
-      - FEISHU_APP_SECRET=${FEISHU_APP_SECRET}
-      - FEISHU_BASE_URL=${FEISHU_BASE_URL:-https://open.feishu.cn/open-apis}
       # Legacy Claude support (when AI_PROVIDER=claude)
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - ANTHROPIC_MODEL=${ANTHROPIC_MODEL}
       - ANTHROPIC_BASE_URL=${ANTHROPIC_BASE_URL}
     volumes:
       - gobivc-data:/app/data
+      # Mount lark-cli config from host for Feishu integration
+      - ${HOME}/.lark-cli:/home/gobivc/.lark-cli:ro
     restart: unless-stopped
 
 volumes:

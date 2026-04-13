@@ -45,8 +45,9 @@ func main() {
 		generator = service.NewOpenAIGenerator(cfg.AIAPIKey, cfg.AIModel, cfg.AIBaseURL)
 	}
 
-	// Initialize Feishu client
-	feishuClient := feishu.NewClient(cfg.FeishuAppID, cfg.FeishuAppSecret, cfg.FeishuBaseURL)
+	// Initialize Feishu client (uses lark-cli)
+	feishuClient := feishu.NewClient()
+	feishuClient.CheckAvailable(context.Background())
 	api.FeishuEnabled = feishuClient.IsConfigured()
 
 	// Initialize service layer

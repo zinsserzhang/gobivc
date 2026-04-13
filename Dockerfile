@@ -14,20 +14,22 @@ ARG TARGETARCH=amd64
 RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
     go build -ldflags="-s -w" -o gobivc cmd/server/main.go
 
-# Minimal runtime image
+# Runtime image with Node.js for lark-cli
 FROM alpine:3.20
 
-RUN apk add --no-cache ca-certificates tzdata && \
+RUN apk add --no-cache ca-certificates tzdata nodejs npm && \
+    npm install -g @larksuite/cli && \
     adduser -D -H -u 1000 gobivc
 
 WORKDIR /app
 COPY --from=builder /app/gobivc .
 COPY --from=builder /app/web ./web
 
-RUN mkdir -p /app/data && chown -R gobivc:gobivc /app
+RUN mkdir -p /app/data /home/gobivc && chown -R gobivc:gobivc /app /home/gobivc
 
 USER gobivc
 
+ENV HOME=/home/gobivc
 ENV PORT=8080
 ENV DATA_DIR=/app/data
 ENV TZ=Asia/Shanghai

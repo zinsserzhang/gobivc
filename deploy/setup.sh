@@ -94,7 +94,9 @@ else
     AI_BASE_URL="$DEFAULT_BASE_URL"
 fi
 
-read -r -p "$(echo -e ${YELLOW}'[4/5]'${NC}) 请输入你的域名 (没有则留空，使用IP访问): " DOMAIN_NAME
+read -r -p "$(echo -e ${YELLOW}'[4/5]'${NC}) 是否启用飞书知识库集成? (y/N): " ENABLE_FEISHU
+
+read -r -p "$(echo -e ${YELLOW}'[5/5]'${NC}) 请输入你的域名 (没有则留空，使用IP访问): " DOMAIN_NAME
 
 # 自动生成 API Token
 API_TOKEN=$(openssl rand -hex 32)
@@ -118,15 +120,22 @@ fi
 # 3. 安装系统依赖
 # ================================================
 echo ""
-log "[1/6] 安装系统依赖..."
+log "[1/7] 安装系统依赖..."
 apt-get update -qq
-apt-get install -y -qq git curl wget nginx certbot python3-certbot-nginx > /dev/null 2>&1
+apt-get install -y -qq git curl wget nginx certbot python3-certbot-nginx nodejs npm > /dev/null 2>&1
 log "系统依赖安装完成"
+
+# Install lark-cli if Feishu enabled
+if [[ "$ENABLE_FEISHU" =~ ^[Yy]$ ]]; then
+    log "[1.5/7] 安装飞书 CLI (lark-cli)..."
+    npm install -g @larksuite/cli > /dev/null 2>&1
+    log "lark-cli 安装完成"
+fi
 
 # ================================================
 # 4. 安装 Docker
 # ================================================
-log "[2/6] 安装 Docker..."
+log "[2/7] 安装 Docker..."
 if command -v docker &> /dev/null; then
     log "Docker 已安装，跳过"
 else
@@ -143,7 +152,7 @@ fi
 # ================================================
 # 5. 克隆项目 & 配置
 # ================================================
-log "[3/6] 克隆项目代码..."
+log "[3/7] 克隆项目代码..."
 INSTALL_DIR="/opt/gobivc"
 
 if [ -d "$INSTALL_DIR" ]; then
@@ -158,7 +167,7 @@ git clone https://github.com/zinsserzhang/gobivc.git "$INSTALL_DIR"
 cd "$INSTALL_DIR"
 git checkout claude/industry-report-generator-qIVST
 
-log "[4/6] 写入配置文件..."
+log "[4/7] 写入配置文件..."
 cat > "$INSTALL_DIR/.env" << ENVEOF
 AI_PROVIDER=${AI_PROVIDER}
 AI_API_KEY=${AI_API_KEY}
@@ -179,7 +188,7 @@ fi
 # ================================================
 # 6. 启动 Docker 容器
 # ================================================
-log "[5/6] 构建并启动服务..."
+log "[5/7] 构建并启动服务..."
 cd "$INSTALL_DIR"
 docker compose up -d --build
 
@@ -203,7 +212,7 @@ fi
 # ================================================
 # 7. 配置 Nginx 反向代理
 # ================================================
-log "[6/6] 配置 Nginx 反向代理..."
+log "[6/7] 配置 Nginx 反向代理..."
 
 # 生成 Nginx 配置
 if [ -n "$DOMAIN_NAME" ]; then
@@ -344,3 +353,19 @@ API 地址:  ${AI_BASE_URL}
 INFOEOF
 
 log "部署信息已保存到 /opt/gobivc/DEPLOY_INFO"
+
+# Feishu setup instructions
+if [[ "$ENABLE_FEISHU" =~ ^[Yy]$ ]]; then
+    echo ""
+    echo -e "  ${YELLOW}飞书知识库集成 - 后续步骤：${NC}"
+    echo ""
+    echo "  lark-cli 已安装，还需要完成认证："
+    echo ""
+    echo "  1. 在服务器上运行:  lark-cli config init"
+    echo "  2. 然后运行:        lark-cli auth login --recommend"
+    echo "  3. 验证:            lark-cli auth status"
+    echo "  4. 重启服务:        cd /opt/gobivc && docker compose restart"
+    echo ""
+    echo "  认证完成后，生成报告时可勾选「飞书知识库参考」"
+    echo ""
+fi
