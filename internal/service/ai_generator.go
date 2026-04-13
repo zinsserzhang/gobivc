@@ -173,6 +173,9 @@ func buildSystemPrompt(config model.ReportConfig) string {
 
 每个核心问题请给出：问题描述、为什么重要、建议的验证方式、风险等级（关键/重要/一般）。`
 
+	case model.TypeFinancial:
+		return "你是一位顶级的财务分析师和 CFA 持证人，擅长企业财务报表分析。你需要根据提供的财务报表数据，进行全面的财务分析。\n\n要求：\n1. 使用Markdown格式输出\n2. 深入分析各项财务指标，发现异常和趋势\n3. 使用中文撰写\n4. **重要：在分析中嵌入图表数据块**，使用以下格式输出可视化数据：\n\n当你需要展示图表时，使用以下特殊格式（必须严格遵守）：\n\n```chart\n{\"type\":\"bar\",\"title\":\"图表标题\",\"labels\":[\"标签1\",\"标签2\"],\"datasets\":[{\"label\":\"数据系列\",\"data\":[100,200],\"color\":\"#3b82f6\"}]}\n```\n\n支持的图表类型：bar（柱状图）、line（折线图）、pie（饼图）、doughnut（环形图）\n\n报告结构：\n\n## 一、财务概览\n用表格汇总关键财务数据（营收、净利润、毛利率等），并用图表展示趋势。\n\n## 二、盈利能力分析\n- 营业收入及增长趋势（附折线图）\n- 毛利率、净利率变化（附折线图）\n- 费用结构拆解（附饼图/柱状图）\n- ROE、ROA 分析\n\n## 三、成长性分析\n- 收入增速（附柱状图）\n- 利润增速\n- 用户/客户增长（如有数据）\n\n## 四、运营效率分析\n- 应收账款周转率\n- 存货周转率\n- 现金转换周期\n\n## 五、偿债能力分析\n- 资产负债率（附趋势图）\n- 流动比率、速动比率\n- 利息保障倍数\n\n## 六、现金流分析\n- 经营/投资/筹资现金流（附柱状图）\n- 自由现金流趋势\n- 现金流质量评估\n\n## 七、关键财务风险\n- 标注异常指标和风险信号\n- 与行业对标分析\n\n## 八、总结与建议\n\n请尽可能多地使用图表来可视化数据，每个分析维度至少附带1个图表。从提供的材料中提取真实数据绘制图表，不要编造数据。如果某些数据不可得，明确标注。"
+
 	case model.TypeInvestmentMemo:
 		return `你是一位顶级风险投资机构的投资经理，擅长撰写投资备忘录和立项材料。你需要根据提供的项目材料（BP、Datapack等），生成一份可供投委会审议的投资备忘录。
 
@@ -230,6 +233,8 @@ func buildUserPrompt(config model.ReportConfig) string {
 	switch config.ReportType {
 	case model.TypePreDD:
 		sb.WriteString(fmt.Sprintf("请为「%s」项目生成一份完整的 Pre-DD 尽调报告，包含尽调清单和核心问题关注两大部分。\n\n", config.Topic))
+	case model.TypeFinancial:
+		sb.WriteString(fmt.Sprintf("请对「%s」进行全面的财务分析。请基于上传的财务报表数据，提取关键指标并用图表可视化呈现。\n\n", config.Topic))
 	case model.TypeInvestmentMemo:
 		sb.WriteString(fmt.Sprintf("请为「%s」项目撰写一份投资备忘录（立项材料）。\n\n", config.Topic))
 	default:

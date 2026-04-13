@@ -80,9 +80,10 @@ function switchView(view) {
 // Open create view for a specific report type
 function openCreate(type) {
     const cfg = {
-        predd:    { title: 'Pre-DD 尽调', desc: '基于项目材料生成尽调清单与核心问题关注', topicLabel: '项目名称', topicPh: '例如：XX科技 A轮融资项目...', dirLabel: '侧重方向', dirPh: '例如：重点关注财务真实性和合规风险...', dirHint: '可选，指定尽调重点关注领域', showFiles: true, showSuggestions: false },
-        memo:     { title: '立项报告', desc: '基于项目材料生成投委会立项报告 / 投资备忘录', topicLabel: '项目名称', topicPh: '例如：XX科技 A轮融资项目...', dirLabel: '侧重方向', dirPh: '例如：重点分析商业模式和财务数据...', dirHint: '可选，指定报告侧重的分析方向', showFiles: true, showSuggestions: false },
-        industry: { title: '行业研究报告', desc: '配置研究参数，AI 将为您生成专业的行业研究报告', topicLabel: '研究主题', topicPh: '输入行业或细分领域...', dirLabel: '研究方向', dirPh: '例如：市场规模与增长趋势、竞争格局分析...', dirHint: '可选，指定报告的重点分析方向', showFiles: false, showSuggestions: true },
+        predd:     { title: 'Pre-DD 尽调', desc: '基于项目材料生成尽调清单与核心问题关注', topicLabel: '项目名称', topicPh: '例如：XX科技 A轮融资项目...', dirLabel: '侧重方向', dirPh: '例如：重点关注财务真实性和合规风险...', dirHint: '可选，指定尽调重点关注领域', showFiles: true, showSuggestions: false },
+        memo:      { title: '立项报告', desc: '基于项目材料生成投委会立项报告 / 投资备忘录', topicLabel: '项目名称', topicPh: '例如：XX科技 A轮融资项目...', dirLabel: '侧重方向', dirPh: '例如：重点分析商业模式和财务数据...', dirHint: '可选，指定报告侧重的分析方向', showFiles: true, showSuggestions: false },
+        financial: { title: '财务分析', desc: '上传财务报表，AI 将分析财务指标并可视化呈现', topicLabel: '公司名称', topicPh: '例如：XX科技有限公司...', dirLabel: '分析侧重', dirPh: '例如：重点分析盈利能力和现金流...', dirHint: '可选，指定财务分析的侧重方向', showFiles: true, showSuggestions: false },
+        industry:  { title: '行业研究报告', desc: '配置研究参数，AI 将为您生成专业的行业研究报告', topicLabel: '研究主题', topicPh: '输入行业或细分领域...', dirLabel: '研究方向', dirPh: '例如：市场规模与增长趋势、竞争格局分析...', dirHint: '可选，指定报告的重点分析方向', showFiles: false, showSuggestions: true },
     };
 
     const c = cfg[type] || cfg.industry;
@@ -520,6 +521,7 @@ async function viewReport(id) {
             tocEl.innerHTML = '';
         } else {
             bodyEl.innerHTML = renderMarkdown(report.content || '');
+            renderCharts(bodyEl);
             buildTOC(bodyEl, tocEl);
         }
 
@@ -589,8 +591,19 @@ async function downloadReport(id) {
 }
 
 // ===== Markdown Renderer =====
+let chartCounter = 0;
+
 function renderMarkdown(md) {
     if (!md) return '';
+
+    // Extract chart blocks before escaping HTML
+    const chartBlocks = [];
+    md = md.replace(/```chart\s*\n([\s\S]*?)```/g, function(match, jsonStr) {
+        const idx = chartBlocks.length;
+        chartBlocks.push(jsonStr.trim());
+        return `%%CHART_${idx}%%`;
+    });
+
     let html = escapeHtml(md);
 
     // Headers
@@ -639,10 +652,73 @@ function renderMarkdown(md) {
         block = block.trim();
         if (!block) return '';
         if (/^<[a-z]/.test(block) || /^<\//.test(block)) return block;
+        if (block.includes('%%CHART_')) return block;
         return '<p>' + block.replace(/\n/g, '<br>') + '</p>';
     }).join('\n');
 
+    // Replace chart placeholders with canvas elements
+    html = html.replace(/%%CHART_(\d+)%%/g, function(match, idx) {
+        const chartId = 'chart-' + (chartCounter++);
+        const jsonStr = chartBlocks[parseInt(idx)];
+        return `<div class="chart-container"><canvas id="${chartId}" data-chart='${escapeHtml(jsonStr)}'></canvas></div>`;
+    });
+
     return html;
+}
+
+// Render all chart canvases in a container
+function renderCharts(container) {
+    if (typeof Chart === 'undefined') return;
+    const canvases = container.querySelectorAll('canvas[data-chart]');
+    canvases.forEach(canvas => {
+        try {
+            const data = JSON.parse(canvas.dataset.chart);
+            createChart(canvas, data);
+        } catch (e) {
+            console.warn('Chart render failed:', e);
+            canvas.parentElement.innerHTML = '<p style="color:var(--text-light);font-size:13px;">[图表渲染失败]</p>';
+        }
+    });
+}
+
+const CHART_COLORS = ['#3b82f6','#ef4444','#10b981','#f59e0b','#8b5cf6','#ec4899','#06b6d4','#84cc16'];
+
+function createChart(canvas, data) {
+    const datasets = (data.datasets || []).map((ds, i) => {
+        const color = ds.color || CHART_COLORS[i % CHART_COLORS.length];
+        const base = {
+            label: ds.label || '',
+            data: ds.data || [],
+            backgroundColor: data.type === 'line' ? 'transparent' : (data.type === 'pie' || data.type === 'doughnut' ? CHART_COLORS : color),
+            borderColor: data.type === 'line' ? color : undefined,
+            borderWidth: data.type === 'line' ? 2 : 1,
+            tension: 0.3,
+            fill: false,
+        };
+        if (data.type === 'pie' || data.type === 'doughnut') {
+            base.backgroundColor = ds.data.map((_, j) => CHART_COLORS[j % CHART_COLORS.length]);
+            base.borderWidth = 2;
+            base.borderColor = '#fff';
+        }
+        return base;
+    });
+
+    new Chart(canvas, {
+        type: data.type || 'bar',
+        data: { labels: data.labels || [], datasets },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                title: { display: !!data.title, text: data.title || '', font: { size: 14, weight: '600' } },
+                legend: { display: datasets.length > 1 || data.type === 'pie' || data.type === 'doughnut' },
+            },
+            scales: (data.type === 'pie' || data.type === 'doughnut') ? {} : {
+                y: { beginAtZero: true, grid: { color: '#f1f5f9' } },
+                x: { grid: { display: false } },
+            },
+        },
+    });
 }
 
 // ===== Utilities =====
@@ -657,7 +733,7 @@ function statusLabel(s) {
 }
 
 function reportTypeLabel(t) {
-    return { predd: 'Pre-DD 尽调', memo: '立项报告', industry: '行业研究' }[t] || t || '行业研究';
+    return { predd: 'Pre-DD 尽调', memo: '立项报告', financial: '财务分析', industry: '行业研究' }[t] || t || '行业研究';
 }
 
 function depthLabel(d) {

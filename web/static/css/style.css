@@ -451,6 +451,19 @@ body {
 .report-body code { background: var(--bg); padding: 1px 5px; border-radius: 3px; font-size: 13px; }
 .report-body hr { border: none; border-top: 1px solid var(--border); margin: 24px 0; }
 
+/* ===== Charts ===== */
+.chart-container {
+    margin: 20px 0;
+    padding: 16px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    max-width: 600px;
+}
+.chart-container canvas {
+    max-height: 350px;
+}
+
 /* ===== Generating / Stream ===== */
 .generating-header {
     background: var(--bg-white); border: 1px solid var(--border);

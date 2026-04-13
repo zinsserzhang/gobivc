@@ -212,6 +212,8 @@ func buildTitle(config model.ReportConfig) string {
 		typeName = "Pre-DD 尽调"
 	case model.TypeInvestmentMemo:
 		typeName = "立项报告"
+	case model.TypeFinancial:
+		typeName = "财务分析"
 	}
 	return config.Topic + " - " + typeName
 }

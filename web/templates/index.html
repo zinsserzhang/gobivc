@@ -23,6 +23,10 @@
                     <span class="nav-icon">&#128221;</span>
                     <span class="nav-text">立项报告</span>
                 </button>
+                <button class="nav-btn" data-view="create-financial" onclick="openCreate('financial')">
+                    <span class="nav-icon">&#128200;</span>
+                    <span class="nav-text">财务分析</span>
+                </button>
                 <button class="nav-btn" data-view="create-industry" onclick="openCreate('industry')">
                     <span class="nav-icon">&#128202;</span>
                     <span class="nav-text">行业研究报告</span>
@@ -186,6 +190,7 @@
                     <button class="type-tab active" data-type="" onclick="filterByType('')">全部</button>
                     <button class="type-tab" data-type="predd" onclick="filterByType('predd')">&#9745; Pre-DD 尽调</button>
                     <button class="type-tab" data-type="memo" onclick="filterByType('memo')">&#128221; 立项报告</button>
+                    <button class="type-tab" data-type="financial" onclick="filterByType('financial')">&#128200; 财务分析</button>
                     <button class="type-tab" data-type="industry" onclick="filterByType('industry')">&#128202; 行业研究</button>
                 </div>
                 <div class="list-toolbar">
@@ -258,6 +263,7 @@
     </div>
 
     <div id="toast-container" class="toast-container"></div>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
     <script src="/static/js/app.js"></script>
 </body>
 </html>
