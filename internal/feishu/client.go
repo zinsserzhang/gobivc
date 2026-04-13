@@ -48,10 +48,10 @@ func (c *Client) CheckAvailable(ctx context.Context) bool {
 	}
 
 	outStr := string(out)
-	// If output contains "authenticated" or similar success indicator
-	if strings.Contains(outStr, "user_id") || strings.Contains(outStr, "authenticated") || strings.Contains(outStr, "open_id") {
+	// lark-cli is available if we can see any identity (user or bot)
+	if strings.Contains(outStr, "appId") || strings.Contains(outStr, "open_id") || strings.Contains(outStr, "identity") {
 		c.enabled = true
-		log.Printf("INFO: feishu: lark-cli authenticated")
+		log.Printf("INFO: feishu: lark-cli available, auth output: %s", strings.TrimSpace(outStr))
 		return true
 	}
 

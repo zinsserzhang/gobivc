@@ -19,7 +19,7 @@ services:
     volumes:
       - gobivc-data:/app/data
       # Mount lark-cli config from host for Feishu integration
-      - ${HOME}/.lark-cli:/home/gobivc/.lark-cli:ro
+      - ${HOME}/.lark-cli:/home/gobivc/.lark-cli
     restart: unless-stopped
 
 volumes:
