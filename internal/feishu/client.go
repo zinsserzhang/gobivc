@@ -282,23 +282,81 @@ func (c *Client) SearchContacts(ctx context.Context, query string) ([]Contact, e
 		return nil, fmt.Errorf("feishu: lark-cli not available")
 	}
 
-	// Use lark-cli contact search
+	// Method 1: try user search with --as user
 	out, err := c.run(ctx, "api", "POST",
 		"/open-apis/search/v1/user",
 		"--data", fmt.Sprintf(`{"query":"%s","page_size":10}`, escapeJSON(query)),
 		"--params", `{"user_id_type":"open_id"}`,
+		"--as", "user",
 	)
-	if err != nil {
-		// Fallback: try the contact search shortcut
-		out, err = c.run(ctx, "api", "GET",
-			fmt.Sprintf("/open-apis/contact/v3/users?user_id_type=open_id&page_size=10"),
-		)
-		if err != nil {
-			return nil, fmt.Errorf("feishu: contact search failed: %w", err)
+	if err == nil {
+		contacts, _ := parseContacts(out)
+		if len(contacts) > 0 {
+			return contacts, nil
 		}
 	}
 
-	return parseContacts(out)
+	// Method 2: list department members (works with bot token) and filter by name
+	out, err = c.run(ctx, "api", "GET",
+		"/open-apis/contact/v3/users/find_by_department",
+		"--params", `{"department_id":"0","page_size":50,"user_id_type":"open_id"}`,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("feishu: contact search failed: %w", err)
+	}
+
+	allContacts, err := parseDepartmentUsers(out)
+	if err != nil {
+		return nil, err
+	}
+
+	// Client-side filter by name
+	queryLower := strings.ToLower(query)
+	var filtered []Contact
+	for _, c := range allContacts {
+		if strings.Contains(strings.ToLower(c.Name), queryLower) {
+			filtered = append(filtered, c)
+			if len(filtered) >= 10 {
+				break
+			}
+		}
+	}
+	return filtered, nil
+}
+
+func parseDepartmentUsers(data []byte) ([]Contact, error) {
+	cleaned := extractJSON(data)
+
+	var resp struct {
+		Data struct {
+			Items []struct {
+				UserID string `json:"user_id"`
+				OpenID string `json:"open_id"`
+				Name   string `json:"name"`
+				Avatar struct {
+					URL string `json:"avatar_72"`
+				} `json:"avatar"`
+			} `json:"items"`
+		} `json:"data"`
+	}
+
+	if err := json.Unmarshal(cleaned, &resp); err != nil {
+		return nil, fmt.Errorf("feishu: parse department users failed: %w", err)
+	}
+
+	contacts := make([]Contact, 0, len(resp.Data.Items))
+	for _, u := range resp.Data.Items {
+		id := u.OpenID
+		if id == "" {
+			id = u.UserID
+		}
+		contacts = append(contacts, Contact{
+			ID:     id,
+			Name:   u.Name,
+			Avatar: u.Avatar.URL,
+		})
+	}
+	return contacts, nil
 }
 
 func parseContacts(data []byte) ([]Contact, error) {
