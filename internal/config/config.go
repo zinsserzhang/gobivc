@@ -27,7 +27,8 @@ type Config struct {
 	AIModel    string
 	AIBaseURL  string
 
-	// Feishu integration (via lark-cli, no config needed here)
+	// Feishu integration
+	FeishuFolderToken string // Drive folder token to search within
 }
 
 // Load reads configuration from environment variables.
@@ -60,6 +61,8 @@ func Load() *Config {
 			log.Println("WARNING: AI_API_KEY is not set.")
 		}
 	}
+
+	cfg.FeishuFolderToken = os.Getenv("FEISHU_FOLDER_TOKEN")
 
 	log.Printf("INFO: AI Provider=%s, Model=%s, BaseURL=%s", cfg.AIProvider, cfg.AIModel, cfg.AIBaseURL)
 

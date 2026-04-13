@@ -11,23 +11,23 @@ import (
 
 // Client wraps the @larksuite/cli (lark-cli) for Feishu/Lark operations.
 type Client struct {
-	CLIPath string // path to lark-cli binary, defaults to "lark-cli"
-	enabled bool
+	CLIPath     string // path to lark-cli binary, defaults to "lark-cli"
+	FolderToken string // specific folder to search within (empty = global search)
+	enabled     bool
 }
 
 // NewClient creates a new Feishu CLI client.
-func NewClient() *Client {
+// folderToken limits searches to a specific Drive folder (empty = global).
+func NewClient(folderToken string) *Client {
 	cliPath := "lark-cli"
-	// Check if lark-cli is available
 	_, err := exec.LookPath(cliPath)
 	if err != nil {
-		// Try npx fallback
 		_, err2 := exec.LookPath("npx")
 		if err2 == nil {
 			cliPath = "npx"
 		}
 	}
-	return &Client{CLIPath: cliPath}
+	return &Client{CLIPath: cliPath, FolderToken: folderToken}
 }
 
 // CheckAvailable verifies lark-cli is installed and authenticated.
@@ -276,7 +276,50 @@ type ReferenceMaterial struct {
 	Content string `json:"content"`
 }
 
-// GatherReferences searches Feishu for materials related to the topic.
+// DriveFile represents a file in a Feishu Drive folder.
+type DriveFile struct {
+	Token string `json:"token"`
+	Name  string `json:"name"`
+	Type  string `json:"type"` // "docx", "doc", "sheet", "folder", etc.
+	URL   string `json:"url"`
+}
+
+// ListFolderFiles lists all files in a Drive folder.
+func (c *Client) ListFolderFiles(ctx context.Context, folderToken string) ([]DriveFile, error) {
+	out, err := c.run(ctx, "api", "GET",
+		fmt.Sprintf("/open-apis/drive/v1/files?folder_token=%s&page_size=50", folderToken),
+		"--output", "json",
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	var resp struct {
+		Data struct {
+			Files []DriveFile `json:"files"`
+		} `json:"data"`
+	}
+
+	// Try to parse, handling possible extra text in output
+	cleaned := extractJSON(out)
+	if err := json.Unmarshal(cleaned, &resp); err != nil {
+		return nil, fmt.Errorf("feishu: parse folder files failed: %w, output: %s", err, truncateStr(string(out), 200))
+	}
+
+	return resp.Data.Files, nil
+}
+
+// extractJSON finds the first { or [ in data and returns from there.
+func extractJSON(data []byte) []byte {
+	s := string(data)
+	i := strings.IndexAny(s, "{[")
+	if i >= 0 {
+		return []byte(s[i:])
+	}
+	return data
+}
+
+// GatherReferences fetches materials from the configured folder or via global search.
 func (c *Client) GatherReferences(ctx context.Context, topic string, maxDocs int) ([]ReferenceMaterial, error) {
 	if !c.enabled {
 		return nil, fmt.Errorf("feishu: lark-cli not available")
@@ -286,24 +329,117 @@ func (c *Client) GatherReferences(ctx context.Context, topic string, maxDocs int
 		maxDocs = 5
 	}
 
-	log.Printf("INFO: feishu: searching for '%s' (max %d docs)", topic, maxDocs)
+	log.Printf("INFO: feishu: gathering references for '%s' (max %d)", topic, maxDocs)
 
+	// If a specific folder is configured, list its files and match by topic
+	if c.FolderToken != "" {
+		return c.gatherFromFolder(ctx, topic, maxDocs)
+	}
+
+	// Otherwise fall back to global search
+	return c.gatherFromSearch(ctx, topic, maxDocs)
+}
+
+// gatherFromFolder lists files in the configured folder and fetches relevant ones.
+func (c *Client) gatherFromFolder(ctx context.Context, topic string, maxDocs int) ([]ReferenceMaterial, error) {
+	files, err := c.ListFolderFiles(ctx, c.FolderToken)
+	if err != nil {
+		log.Printf("WARNING: feishu: folder listing failed, falling back to search: %v", err)
+		return c.gatherFromSearch(ctx, topic, maxDocs)
+	}
+
+	log.Printf("INFO: feishu: found %d files in folder", len(files))
+
+	// Filter to document types only
+	var docs []DriveFile
+	for _, f := range files {
+		switch f.Type {
+		case "docx", "doc", "wiki", "sheet":
+			docs = append(docs, f)
+		}
+	}
+
+	// Score and rank by topic relevance (simple keyword matching on title)
+	type scored struct {
+		file  DriveFile
+		score int
+	}
+	topicLower := strings.ToLower(topic)
+	topicWords := strings.Fields(topicLower)
+
+	var scored_files []scored
+	for _, d := range docs {
+		nameLower := strings.ToLower(d.Name)
+		score := 0
+		// Full topic match
+		if strings.Contains(nameLower, topicLower) {
+			score += 10
+		}
+		// Individual word matches
+		for _, w := range topicWords {
+			if len(w) >= 2 && strings.Contains(nameLower, w) {
+				score += 3
+			}
+		}
+		// Always include (score 0 = no match but still in the folder)
+		scored_files = append(scored_files, scored{file: d, score: score})
+	}
+
+	// Sort by score descending
+	for i := 0; i < len(scored_files); i++ {
+		for j := i + 1; j < len(scored_files); j++ {
+			if scored_files[j].score > scored_files[i].score {
+				scored_files[i], scored_files[j] = scored_files[j], scored_files[i]
+			}
+		}
+	}
+
+	// Take top N
+	if len(scored_files) > maxDocs {
+		scored_files = scored_files[:maxDocs]
+	}
+
+	var materials []ReferenceMaterial
+	for _, sf := range scored_files {
+		content, err := c.GetDocContent(ctx, sf.file.Token, sf.file.Type)
+		if err != nil {
+			log.Printf("WARNING: feishu: failed to fetch '%s': %v", sf.file.Name, err)
+			continue
+		}
+
+		content = truncateText(content, 3000)
+		if content == "" {
+			continue
+		}
+
+		materials = append(materials, ReferenceMaterial{
+			Title:   sf.file.Name,
+			URL:     sf.file.URL,
+			Content: content,
+		})
+	}
+
+	log.Printf("INFO: feishu: gathered %d reference materials from folder", len(materials))
+	return materials, nil
+}
+
+// gatherFromSearch uses global document search.
+func (c *Client) gatherFromSearch(ctx context.Context, topic string, maxDocs int) ([]ReferenceMaterial, error) {
 	results, err := c.SearchDocs(ctx, topic, maxDocs)
 	if err != nil {
 		return nil, fmt.Errorf("feishu: search failed: %w", err)
 	}
 
-	log.Printf("INFO: feishu: found %d documents", len(results))
+	log.Printf("INFO: feishu: search found %d documents", len(results))
 
 	var materials []ReferenceMaterial
 	for _, r := range results {
 		content, err := c.GetDocContent(ctx, r.Token, r.Type)
 		if err != nil {
-			log.Printf("WARNING: feishu: failed to fetch doc '%s' (%s): %v", r.Title, r.Token, err)
+			log.Printf("WARNING: feishu: failed to fetch '%s': %v", r.Title, err)
 			continue
 		}
 
-		// Truncate to ~3000 chars per document
 		content = truncateText(content, 3000)
 		if content == "" {
 			continue
@@ -316,7 +452,7 @@ func (c *Client) GatherReferences(ctx context.Context, topic string, maxDocs int
 		})
 	}
 
-	log.Printf("INFO: feishu: gathered %d reference materials", len(materials))
+	log.Printf("INFO: feishu: gathered %d reference materials from search", len(materials))
 	return materials, nil
 }
 

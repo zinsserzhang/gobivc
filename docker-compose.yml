@@ -12,6 +12,8 @@ services:
       - ALLOWED_ORIGIN=${ALLOWED_ORIGIN:-*}
       - PORT=8080
       - DATA_DIR=/app/data
+      # Feishu folder (optional, limits search to specific Drive folder)
+      - FEISHU_FOLDER_TOKEN=${FEISHU_FOLDER_TOKEN}
       # Legacy Claude support (when AI_PROVIDER=claude)
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - ANTHROPIC_MODEL=${ANTHROPIC_MODEL}

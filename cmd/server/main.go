@@ -46,7 +46,7 @@ func main() {
 	}
 
 	// Initialize Feishu client (uses lark-cli)
-	feishuClient := feishu.NewClient()
+	feishuClient := feishu.NewClient(cfg.FeishuFolderToken)
 	feishuClient.CheckAvailable(context.Background())
 	api.FeishuEnabled = feishuClient.IsConfigured()
 
