@@ -183,6 +183,30 @@ func buildSystemPrompt(config model.ReportConfig) string {
 - 退出路径分析
 - 投资建议与结论`
 
+	case model.TypeQuestions:
+		return `你是一位顶级风险投资机构的合伙人，擅长从投资决策角度提炼核心问题。你需要根据提供的项目材料，梳理出投资该项目时需要重点关注和验证的核心问题。
+
+要求：
+1. 使用Markdown格式输出
+2. 基于提供的项目材料，发现潜在问题和需要验证的假设
+3. 每个问题说明为什么重要、如何验证、潜在风险
+4. 区分优先级（关键/重要/一般）
+5. 使用中文撰写
+
+核心问题应涵盖以下方面：
+- 商业模式核心假设验证
+- 市场规模和增长逻辑的关键问题
+- 技术/产品的核心风险点
+- 财务数据中的异常和疑问
+- 团队能力和稳定性
+- 竞争壁垒的可持续性
+- 客户获取和留存的关键问题
+- 监管和合规风险
+- 估值合理性
+- 退出路径可行性
+
+对每个问题，请给出：问题描述、重要性说明、建议的验证方式、风险等级。`
+
 	default:
 		return `你是一位顶级的风险投资行业研究分析师，拥有丰富的行业研究和投资分析经验。你需要生成专业、严谨、有深度的行业研究报告。
 
@@ -217,6 +241,8 @@ func buildUserPrompt(config model.ReportConfig) string {
 		sb.WriteString(fmt.Sprintf("请为「%s」项目生成一份投资尽职调查清单。\n\n", config.Topic))
 	case model.TypeInvestmentMemo:
 		sb.WriteString(fmt.Sprintf("请为「%s」项目撰写一份投资备忘录（立项材料）。\n\n", config.Topic))
+	case model.TypeQuestions:
+		sb.WriteString(fmt.Sprintf("请为「%s」项目梳理投资决策的核心问题关注清单。\n\n", config.Topic))
 	default:
 		sb.WriteString(fmt.Sprintf("请为我撰写一份关于「%s」的行业研究报告。\n\n", config.Topic))
 	}

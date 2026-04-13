@@ -3,25 +3,39 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GobiVC - 行业研究报告生成系统</title>
+    <title>GobiVC - 投研工作台</title>
     <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
     <div id="app">
-        <!-- Sidebar -->
         <aside class="sidebar" id="sidebar">
             <div class="sidebar-header">
                 <h1 class="logo">GobiVC</h1>
-                <p class="logo-sub">行业研究报告系统</p>
+                <p class="logo-sub">投研工作台</p>
             </div>
             <nav class="sidebar-nav">
-                <button class="nav-btn active" data-view="create" onclick="switchView('create')">
-                    <span class="nav-icon">&#43;</span>
-                    <span class="nav-text">生成新报告</span>
+                <div class="nav-section-label">生成</div>
+                <button class="nav-btn active" data-view="create-industry" onclick="openCreate('industry')">
+                    <span class="nav-icon">&#128202;</span>
+                    <span class="nav-text">行业研究报告</span>
                 </button>
+                <button class="nav-btn" data-view="create-memo" onclick="openCreate('memo')">
+                    <span class="nav-icon">&#128221;</span>
+                    <span class="nav-text">立项报告</span>
+                </button>
+                <button class="nav-btn" data-view="create-checklist" onclick="openCreate('checklist')">
+                    <span class="nav-icon">&#9745;</span>
+                    <span class="nav-text">尽调清单</span>
+                </button>
+                <button class="nav-btn" data-view="create-questions" onclick="openCreate('questions')">
+                    <span class="nav-icon">&#128270;</span>
+                    <span class="nav-text">核心问题关注</span>
+                </button>
+
+                <div class="nav-section-label" style="margin-top:16px">管理</div>
                 <button class="nav-btn" data-view="list" onclick="switchView('list')">
-                    <span class="nav-icon">&#9776;</span>
-                    <span class="nav-text">报告列表</span>
+                    <span class="nav-icon">&#128196;</span>
+                    <span class="nav-text">全部报告</span>
                 </button>
             </nav>
             <div class="sidebar-footer">
@@ -32,59 +46,27 @@
             </div>
         </aside>
 
-        <!-- Mobile top bar -->
         <div class="mobile-topbar">
             <button class="mobile-menu-btn" onclick="toggleSidebar()">&#9776;</button>
             <span class="mobile-title">GobiVC</span>
         </div>
 
-        <!-- Main Content -->
         <main class="main-content" id="main-content">
 
-            <!-- Create Report View -->
+            <!-- Unified Create View -->
             <div id="view-create" class="view active">
-                <div class="page-header">
-                    <h2>生成报告</h2>
-                    <p>选择报告类型，配置参数，AI 将为您生成专业内容</p>
+                <div class="page-header" id="create-header">
+                    <h2>行业研究报告</h2>
+                    <p>配置研究参数，AI 将为您生成专业的行业研究报告</p>
                 </div>
 
                 <form id="report-form" class="report-form" onsubmit="handleSubmit(event)">
-                    <!-- Report Type Selector -->
-                    <div class="form-group">
-                        <label>报告类型</label>
-                        <div class="type-selector">
-                            <label class="type-option">
-                                <input type="radio" name="report_type" value="industry" checked onchange="onTypeChange()">
-                                <div class="type-card">
-                                    <div class="type-icon">&#128202;</div>
-                                    <div class="type-title">行业研究报告</div>
-                                    <div class="type-desc">市场分析、竞争格局、投资建议</div>
-                                </div>
-                            </label>
-                            <label class="type-option">
-                                <input type="radio" name="report_type" value="checklist" onchange="onTypeChange()">
-                                <div class="type-card">
-                                    <div class="type-icon">&#9745;</div>
-                                    <div class="type-title">尽调清单</div>
-                                    <div class="type-desc">投资尽职调查要点与检查项</div>
-                                </div>
-                            </label>
-                            <label class="type-option">
-                                <input type="radio" name="report_type" value="memo" onchange="onTypeChange()">
-                                <div class="type-card">
-                                    <div class="type-icon">&#128221;</div>
-                                    <div class="type-title">投资备忘录</div>
-                                    <div class="type-desc">立项材料 / 投委会审议文件</div>
-                                </div>
-                            </label>
-                        </div>
-                    </div>
+                    <input type="hidden" id="report-type" name="report_type" value="industry">
 
                     <div class="form-group">
                         <label for="topic" id="topic-label">研究主题 <span class="required">*</span></label>
                         <input type="text" id="topic" name="topic" autocomplete="off"
-                               placeholder="输入行业或细分领域..."
-                               required>
+                               placeholder="输入行业或细分领域..." required>
                         <div class="topic-suggestions" id="topic-suggestions">
                             <div class="suggestions-label">热门研究方向</div>
                             <div class="suggestions-tags">
@@ -104,11 +86,11 @@
                         </div>
                     </div>
 
-                    <div class="form-group">
-                        <label for="direction">研究方向</label>
+                    <div class="form-group" id="direction-group">
+                        <label for="direction" id="direction-label">研究方向</label>
                         <input type="text" id="direction" name="direction" autocomplete="off"
-                               placeholder="例如：市场规模与增长趋势、竞争格局分析、技术发展路线...">
-                        <span class="form-hint">可选，指定报告的重点分析方向</span>
+                               placeholder="例如：市场规模与增长趋势、竞争格局分析...">
+                        <span class="form-hint" id="direction-hint">可选，指定报告的重点分析方向</span>
                     </div>
 
                     <div class="form-group">
@@ -120,7 +102,7 @@
                                     <div class="depth-icon">&#9997;</div>
                                     <div class="depth-title">概览</div>
                                     <div class="depth-desc">~2,000 字</div>
-                                    <div class="depth-detail">快速了解行业概况<br>适合初步调研</div>
+                                    <div class="depth-detail">快速概览<br>适合初步了解</div>
                                     <div class="depth-time">预计 1-2 分钟</div>
                                 </div>
                             </label>
@@ -130,7 +112,7 @@
                                     <div class="depth-icon">&#128202;</div>
                                     <div class="depth-title">标准</div>
                                     <div class="depth-desc">~5,000 字</div>
-                                    <div class="depth-detail">全面的行业分析<br>涵盖核心维度</div>
+                                    <div class="depth-detail">全面分析<br>涵盖核心维度</div>
                                     <div class="depth-time">预计 2-4 分钟</div>
                                 </div>
                             </label>
@@ -140,14 +122,14 @@
                                     <div class="depth-icon">&#128218;</div>
                                     <div class="depth-title">深度</div>
                                     <div class="depth-desc">~10,000 字</div>
-                                    <div class="depth-detail">详尽深度研究<br>适合投资决策</div>
+                                    <div class="depth-detail">详尽深度分析<br>适合决策</div>
                                     <div class="depth-time">预计 4-8 分钟</div>
                                 </div>
                             </label>
                         </div>
                     </div>
 
-                    <!-- File Upload (for DD checklist and investment memo) -->
+                    <!-- File Upload -->
                     <div class="form-group" id="file-upload-group" style="display:none">
                         <label>上传项目材料</label>
                         <div class="upload-area" id="upload-area" onclick="document.getElementById('file-input').click()"
@@ -161,10 +143,10 @@
                             <p class="upload-hint">支持 PDF、DOCX、PPTX、TXT 等格式，单文件最大 50MB</p>
                         </div>
                         <div class="file-list" id="file-list"></div>
-                        <span class="form-hint">上传 BP（商业计划书）、Datapack、财务报表等尽调材料</span>
+                        <span class="form-hint">上传 BP、Datapack、财务报表等项目材料</span>
                     </div>
 
-                    <!-- Feishu integration (shown only when enabled) -->
+                    <!-- Feishu integration -->
                     <div class="form-group feishu-group" id="feishu-group" style="display:none">
                         <label>
                             <span class="feishu-label">
@@ -177,15 +159,15 @@
                                 <input type="checkbox" id="use-feishu" name="use_feishu">
                                 <span class="toggle-slider"></span>
                             </label>
-                            <span class="feishu-desc">自动检索飞书中与主题相关的研究材料，作为报告参考</span>
+                            <span class="feishu-desc">自动检索飞书中与主题相关的研究材料作为参考</span>
                         </div>
                     </div>
 
                     <div class="form-group">
                         <label for="custom_notes">特别要求</label>
                         <textarea id="custom_notes" name="custom_notes" rows="3"
-                                  placeholder="例如：请重点分析中国市场、关注近一年最新动态、对比分析 TOP5 企业..."></textarea>
-                        <span class="form-hint">可选，添加您希望报告关注的特定方面</span>
+                                  placeholder="例如：请重点分析中国市场、关注近一年最新动态..."></textarea>
+                        <span class="form-hint">可选，添加您希望关注的特定方面</span>
                     </div>
 
                     <button type="submit" class="btn-primary btn-generate" id="btn-submit">
@@ -200,8 +182,16 @@
             <!-- Report List View -->
             <div id="view-list" class="view">
                 <div class="page-header">
-                    <h2>报告列表</h2>
-                    <p>查看和管理已生成的行业研究报告</p>
+                    <h2>全部报告</h2>
+                    <p>查看和管理已生成的报告</p>
+                </div>
+                <!-- Type tabs -->
+                <div class="type-tabs" id="type-tabs">
+                    <button class="type-tab active" data-type="" onclick="filterByType('')">全部</button>
+                    <button class="type-tab" data-type="industry" onclick="filterByType('industry')">&#128202; 行业研究</button>
+                    <button class="type-tab" data-type="memo" onclick="filterByType('memo')">&#128221; 立项报告</button>
+                    <button class="type-tab" data-type="checklist" onclick="filterByType('checklist')">&#9745; 尽调清单</button>
+                    <button class="type-tab" data-type="questions" onclick="filterByType('questions')">&#128270; 核心问题</button>
                 </div>
                 <div class="list-toolbar">
                     <div class="search-box">
@@ -211,12 +201,6 @@
                         <button class="search-clear" id="search-clear" onclick="clearSearch()" style="display:none">&#10005;</button>
                     </div>
                     <div class="filter-group">
-                        <select id="filter-depth" onchange="applyFilters()">
-                            <option value="">所有深度</option>
-                            <option value="brief">概览</option>
-                            <option value="standard">标准</option>
-                            <option value="deep">深度</option>
-                        </select>
                         <select id="filter-status" onchange="applyFilters()">
                             <option value="">所有状态</option>
                             <option value="completed">已完成</option>
@@ -234,7 +218,7 @@
                     <div class="empty-state">
                         <div class="empty-icon">&#128196;</div>
                         <p>暂无报告</p>
-                        <p class="empty-sub">点击左侧「生成新报告」创建第一份行业研究</p>
+                        <p class="empty-sub">从左侧选择类型开始创建</p>
                     </div>
                 </div>
             </div>
@@ -247,13 +231,12 @@
                 </div>
                 <div class="detail-meta" id="detail-meta"></div>
                 <div class="report-detail" id="report-detail">
-                    <!-- TOC sidebar -->
                     <nav class="report-toc" id="report-toc"></nav>
                     <div class="report-body" id="report-body"></div>
                 </div>
             </div>
 
-            <!-- Generating View (with live streaming) -->
+            <!-- Generating View -->
             <div id="view-generating" class="view">
                 <div class="generating-header">
                     <div class="generating-status">
@@ -266,10 +249,12 @@
                     </div>
                 </div>
                 <div class="stream-output report-detail" id="stream-output">
-                    <div class="stream-placeholder">
-                        <div class="stream-placeholder-icon">&#129302;</div>
-                        <p>AI 正在分析行业数据并撰写报告</p>
-                        <p class="stream-placeholder-sub">内容将实时显示在此处...</p>
+                    <div class="report-body">
+                        <div class="stream-placeholder">
+                            <div class="stream-placeholder-icon">&#129302;</div>
+                            <p>AI 正在分析数据并撰写内容</p>
+                            <p class="stream-placeholder-sub">内容将实时显示在此处...</p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -277,9 +262,7 @@
         </main>
     </div>
 
-    <!-- Toast container -->
     <div id="toast-container" class="toast-container"></div>
-
     <script src="/static/js/app.js"></script>
 </body>
 </html>

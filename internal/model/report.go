@@ -9,6 +9,7 @@ const (
 	TypeIndustryReport ReportType = "industry"  // 行业研究报告
 	TypeDDChecklist    ReportType = "checklist"  // 投资尽调清单
 	TypeInvestmentMemo ReportType = "memo"       // 投资备忘录/立项材料
+	TypeQuestions      ReportType = "questions"  // 核心问题关注
 )
 
 // ReportDepth defines the analysis depth.
@@ -88,7 +89,7 @@ func (r *CreateReportRequest) Validate() string {
 		return "topic is required"
 	}
 	switch r.ReportType {
-	case TypeIndustryReport, TypeDDChecklist, TypeInvestmentMemo:
+	case TypeIndustryReport, TypeDDChecklist, TypeInvestmentMemo, TypeQuestions:
 		// valid
 	case "":
 		r.ReportType = TypeIndustryReport

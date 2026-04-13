@@ -60,6 +60,8 @@ function toggleSidebar() {
 }
 
 // ===== View Management =====
+let currentTypeFilter = '';
+
 function switchView(view) {
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
     document.querySelectorAll('.nav-btn[data-view]').forEach(b => b.classList.remove('active'));
@@ -70,12 +72,47 @@ function switchView(view) {
     if (view === 'list') loadReports();
     if (view !== 'generating') { stopPolling(); stopStream(); }
 
-    // Close mobile sidebar
     const sidebar = document.getElementById('sidebar');
     if (sidebar.classList.contains('open')) toggleSidebar();
-
-    // Scroll to top
     window.scrollTo(0, 0);
+}
+
+// Open create view for a specific report type
+function openCreate(type) {
+    const cfg = {
+        industry:  { title: '行业研究报告', desc: '配置研究参数，AI 将为您生成专业的行业研究报告', topicLabel: '研究主题', topicPh: '输入行业或细分领域...', dirLabel: '研究方向', dirPh: '例如：市场规模与增长趋势、竞争格局分析...', dirHint: '可选，指定报告的重点分析方向', showFiles: false, showSuggestions: true },
+        memo:      { title: '立项报告', desc: '基于项目材料生成投委会立项报告 / 投资备忘录', topicLabel: '项目名称', topicPh: '例如：XX科技 A轮融资项目...', dirLabel: '侧重方向', dirPh: '例如：重点分析商业模式和财务数据...', dirHint: '可选，指定报告侧重的分析方向', showFiles: true, showSuggestions: false },
+        checklist: { title: '尽调清单', desc: '基于项目材料生成投资尽职调查清单', topicLabel: '项目名称', topicPh: '例如：XX科技 A轮融资项目...', dirLabel: '侧重方向', dirPh: '例如：重点关注财务真实性和合规风险...', dirHint: '可选，指定尽调重点关注领域', showFiles: true, showSuggestions: false },
+        questions: { title: '核心问题关注', desc: '基于项目材料梳理投资决策的核心问题', topicLabel: '项目名称', topicPh: '例如：XX科技 A轮融资项目...', dirLabel: '关注领域', dirPh: '例如：技术壁垒、团队稳定性、客户集中度...', dirHint: '可选，指定需要重点关注的问题领域', showFiles: true, showSuggestions: false },
+    };
+
+    const c = cfg[type] || cfg.industry;
+    document.getElementById('report-type').value = type;
+    document.getElementById('create-header').innerHTML = `<h2>${c.title}</h2><p>${c.desc}</p>`;
+    document.getElementById('topic-label').innerHTML = c.topicLabel + ' <span class="required">*</span>';
+    document.getElementById('topic').placeholder = c.topicPh;
+    document.getElementById('direction-label').textContent = c.dirLabel;
+    document.getElementById('direction').placeholder = c.dirPh;
+    document.getElementById('direction-hint').textContent = c.dirHint;
+    document.getElementById('topic-suggestions').style.display = c.showSuggestions ? 'block' : 'none';
+    document.getElementById('file-upload-group').style.display = c.showFiles ? 'block' : 'none';
+
+    // Highlight sidebar
+    document.querySelectorAll('.nav-btn[data-view]').forEach(b => b.classList.remove('active'));
+    const navBtn = document.querySelector(`.nav-btn[data-view="create-${type}"]`);
+    if (navBtn) navBtn.classList.add('active');
+
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    document.getElementById('view-create').classList.add('active');
+    window.scrollTo(0, 0);
+}
+
+// Type tab filter for report list
+function filterByType(type) {
+    currentTypeFilter = type;
+    document.querySelectorAll('.type-tab').forEach(t => t.classList.remove('active'));
+    document.querySelector(`.type-tab[data-type="${type}"]`).classList.add('active');
+    applyFilters();
 }
 
 // ===== API =====
@@ -105,30 +142,8 @@ async function checkFeishuStatus() {
 }
 checkFeishuStatus();
 
-// ===== Report Type Switching =====
-let uploadedFileIDs = [];
-
-function onTypeChange() {
-    const type = document.querySelector('input[name="report_type"]:checked').value;
-    const fileGroup = document.getElementById('file-upload-group');
-    const topicLabel = document.getElementById('topic-label');
-    const topicInput = document.getElementById('topic');
-    const suggestionsEl = document.getElementById('topic-suggestions');
-
-    if (type === 'checklist' || type === 'memo') {
-        fileGroup.style.display = 'block';
-        topicLabel.innerHTML = '项目名称 <span class="required">*</span>';
-        topicInput.placeholder = '例如：XX科技 A轮融资项目...';
-        suggestionsEl.style.display = 'none';
-    } else {
-        fileGroup.style.display = 'none';
-        topicLabel.innerHTML = '研究主题 <span class="required">*</span>';
-        topicInput.placeholder = '输入行业或细分领域...';
-        suggestionsEl.style.display = 'block';
-    }
-}
-
 // ===== File Upload =====
+let uploadedFileIDs = [];
 function handleFileSelect(event) {
     const files = event.target.files;
     if (files.length > 0) uploadFiles(files);
@@ -238,7 +253,7 @@ async function handleSubmit(event) {
 
     try {
         const form = document.getElementById('report-form');
-        const reportType = form.querySelector('input[name="report_type"]:checked').value;
+        const reportType = document.getElementById('report-type').value;
         const topic = form.topic.value.trim();
         const direction = form.direction.value.trim();
         const depth = form.querySelector('input[name="depth"]:checked').value;
@@ -273,10 +288,8 @@ async function handleSubmit(event) {
 
         form.reset();
         form.querySelector('input[name="depth"][value="standard"]').checked = true;
-        form.querySelector('input[name="report_type"][value="industry"]').checked = true;
         uploadedFileIDs = [];
         document.getElementById('file-list').innerHTML = '';
-        onTypeChange();
     } catch (err) {
         toast('创建失败: ' + err.message, 'error');
     } finally {
@@ -387,13 +400,12 @@ async function loadReports(query) {
 }
 
 function applyFilters() {
-    const depthFilter = document.getElementById('filter-depth').value;
     const statusFilter = document.getElementById('filter-status').value;
     const sortOrder = document.getElementById('sort-order').value;
 
     let filtered = [...allReports];
 
-    if (depthFilter) filtered = filtered.filter(r => r.depth === depthFilter);
+    if (currentTypeFilter) filtered = filtered.filter(r => (r.report_type || 'industry') === currentTypeFilter);
     if (statusFilter) filtered = filtered.filter(r => r.status === statusFilter);
 
     filtered.sort((a, b) => {
@@ -639,7 +651,7 @@ function statusLabel(s) {
 }
 
 function reportTypeLabel(t) {
-    return { industry: '行业研究', checklist: '尽调清单', memo: '投资备忘录' }[t] || t || '行业研究';
+    return { industry: '行业研究', checklist: '尽调清单', memo: '立项报告', questions: '核心问题' }[t] || t || '行业研究';
 }
 
 function depthLabel(d) {

@@ -194,7 +194,7 @@ func (s *ReportService) generateReport(id string) {
 	report.Content = content
 	report.Status = model.StatusCompleted
 	report.CompletedAt = &now
-	report.Title = extractTitle(content, report.Config.Topic)
+	report.Title = buildTitle(report.Config)
 
 	if err := s.store.Update(report); err != nil {
 		log.Printf("ERROR: failed to update report %s with content: %v", id, err)
@@ -204,22 +204,18 @@ func (s *ReportService) generateReport(id string) {
 	log.Printf("INFO: report %s generated successfully", id)
 }
 
-// extractTitle tries to extract the title from the first line of markdown content.
-func extractTitle(content, fallback string) string {
-	for i := 0; i < len(content); i++ {
-		if content[i] == '\n' {
-			line := content[:i]
-			for len(line) > 0 && line[0] == '#' {
-				line = line[1:]
-			}
-			line = trimSpace(line)
-			if line != "" {
-				return line
-			}
-			break
-		}
+// buildTitle generates a title from project name + report type.
+func buildTitle(config model.ReportConfig) string {
+	typeName := "行业研究报告"
+	switch config.ReportType {
+	case model.TypeDDChecklist:
+		typeName = "尽调清单"
+	case model.TypeInvestmentMemo:
+		typeName = "立项报告"
+	case model.TypeQuestions:
+		typeName = "核心问题关注"
 	}
-	return fallback + " 行业研究报告"
+	return config.Topic + " - " + typeName
 }
 
 func trimSpace(s string) string {
