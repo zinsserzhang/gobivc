@@ -120,7 +120,26 @@ func (g *OpenAIGenerator) Generate(ctx context.Context, config model.ReportConfi
 		return "", fmt.Errorf("API returned no choices")
 	}
 
-	return result.Choices[0].Message.Content, nil
+	content := result.Choices[0].Message.Content
+	content = stripThinkingBlocks(content)
+	return content, nil
+}
+
+// stripThinkingBlocks removes <think>...</think> blocks from content.
+func stripThinkingBlocks(s string) string {
+	for {
+		start := strings.Index(s, "<think>")
+		if start == -1 {
+			break
+		}
+		end := strings.Index(s[start:], "</think>")
+		if end == -1 {
+			s = s[:start]
+			break
+		}
+		s = s[:start] + s[start+end+len("</think>"):]
+	}
+	return strings.TrimSpace(s)
 }
 
 // GenerateStream implements StreamGenerator for SSE streaming.
@@ -166,8 +185,10 @@ func (g *OpenAIGenerator) GenerateStream(ctx context.Context, config model.Repor
 }
 
 // parseOpenAISSEStream reads OpenAI-format SSE stream.
+// Filters out thinking/reasoning content (e.g. <think>...</think> blocks).
 func parseOpenAISSEStream(reader io.Reader, callback StreamCallback) (string, error) {
 	var fullContent strings.Builder
+	var inThinking bool
 	scanner := bufio.NewScanner(reader)
 	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
 
@@ -186,7 +207,8 @@ func parseOpenAISSEStream(reader io.Reader, callback StreamCallback) (string, er
 		var event struct {
 			Choices []struct {
 				Delta struct {
-					Content string `json:"content"`
+					Content          string `json:"content"`
+					ReasoningContent string `json:"reasoning_content"`
 				} `json:"delta"`
 			} `json:"choices"`
 		}
@@ -195,12 +217,54 @@ func parseOpenAISSEStream(reader io.Reader, callback StreamCallback) (string, er
 			continue
 		}
 
-		if len(event.Choices) > 0 && event.Choices[0].Delta.Content != "" {
-			text := event.Choices[0].Delta.Content
-			fullContent.WriteString(text)
-			if callback != nil {
-				callback(text)
+		if len(event.Choices) == 0 {
+			continue
+		}
+
+		// Skip reasoning_content field entirely
+		text := event.Choices[0].Delta.Content
+		if text == "" {
+			continue
+		}
+
+		// Filter <think>...</think> blocks that some models embed in content
+		for len(text) > 0 {
+			if inThinking {
+				endIdx := strings.Index(text, "</think>")
+				if endIdx == -1 {
+					break // entire chunk is thinking, skip
+				}
+				text = text[endIdx+len("</think>"):]
+				inThinking = false
+				continue
 			}
+
+			startIdx := strings.Index(text, "<think>")
+			if startIdx == -1 {
+				// No thinking tag, output the text
+				fullContent.WriteString(text)
+				if callback != nil {
+					callback(text)
+				}
+				break
+			}
+
+			// Output text before <think>
+			if startIdx > 0 {
+				before := text[:startIdx]
+				fullContent.WriteString(before)
+				if callback != nil {
+					callback(before)
+				}
+			}
+
+			// Check if closing tag is in the same chunk
+			endIdx := strings.Index(text[startIdx:], "</think>")
+			if endIdx == -1 {
+				inThinking = true
+				break
+			}
+			text = text[startIdx+endIdx+len("</think>"):]
 		}
 	}
 
