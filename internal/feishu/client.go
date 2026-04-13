@@ -34,9 +34,9 @@ func NewClient() *Client {
 func (c *Client) CheckAvailable(ctx context.Context) bool {
 	var cmd *exec.Cmd
 	if c.CLIPath == "npx" {
-		cmd = exec.CommandContext(ctx, "npx", "@larksuite/cli", "auth", "status", "--output", "json")
+		cmd = exec.CommandContext(ctx, "npx", "@larksuite/cli", "auth", "status")
 	} else {
-		cmd = exec.CommandContext(ctx, c.CLIPath, "auth", "status", "--output", "json")
+		cmd = exec.CommandContext(ctx, c.CLIPath, "auth", "status")
 	}
 
 	// lark-cli may exit with non-zero even when it outputs valid JSON,
