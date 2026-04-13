@@ -28,7 +28,10 @@ type Config struct {
 	AIBaseURL  string
 
 	// Feishu integration
-	FeishuFolderToken string // Drive folder token to search within
+	FeishuFolderToken string
+
+	// Qveris.ai (financial data)
+	QverisAPIKey string
 }
 
 // Load reads configuration from environment variables.
@@ -63,6 +66,7 @@ func Load() *Config {
 	}
 
 	cfg.FeishuFolderToken = os.Getenv("FEISHU_FOLDER_TOKEN")
+	cfg.QverisAPIKey = os.Getenv("QVERIS_API_KEY")
 
 	log.Printf("INFO: AI Provider=%s, Model=%s, BaseURL=%s", cfg.AIProvider, cfg.AIModel, cfg.AIBaseURL)
 

@@ -13,6 +13,7 @@ import (
 	"github.com/zinsserzhang/gobivc/internal/api"
 	"github.com/zinsserzhang/gobivc/internal/config"
 	"github.com/zinsserzhang/gobivc/internal/feishu"
+	"github.com/zinsserzhang/gobivc/internal/qveris"
 	"github.com/zinsserzhang/gobivc/internal/service"
 	"github.com/zinsserzhang/gobivc/internal/store"
 )
@@ -50,8 +51,11 @@ func main() {
 	feishuClient.CheckAvailable(context.Background())
 	api.FeishuEnabled = feishuClient.IsConfigured()
 
+	// Initialize Qveris client (financial data)
+	qverisClient := qveris.NewClient(cfg.QverisAPIKey)
+
 	// Initialize service layer
-	reportService := service.NewReportService(sqliteStore, generator, feishuClient)
+	reportService := service.NewReportService(sqliteStore, generator, feishuClient, qverisClient)
 
 	// Initialize API handler and router
 	handler := api.NewHandler(reportService, feishuClient)

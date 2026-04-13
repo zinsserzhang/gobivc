@@ -80,6 +80,8 @@ type FinancialInfo struct {
 	Currency       string   `json:"currency"`        // 币种
 	PeerCompanies  string   `json:"peer_companies"`  // 对标公司
 	FocusAreas     []string `json:"focus_areas"`     // 重点关注领域
+	EnableComps    bool     `json:"enable_comps"`    // 启用二级市场Comps对比
+	CompsSymbols   string   `json:"comps_symbols"`   // Comps股票代码（逗号分隔）
 }
 
 // IndustryInfo holds structured inputs for industry research.

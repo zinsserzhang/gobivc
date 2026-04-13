@@ -11,6 +11,7 @@ import (
 
 	"github.com/zinsserzhang/gobivc/internal/feishu"
 	"github.com/zinsserzhang/gobivc/internal/model"
+	"github.com/zinsserzhang/gobivc/internal/qveris"
 	"github.com/zinsserzhang/gobivc/internal/store"
 )
 
@@ -19,18 +20,19 @@ type ReportService struct {
 	store     store.ReportStore
 	generator AIGenerator
 	feishu    *feishu.Client
+	qveris    *qveris.Client
 
-	// SSE stream subscribers: reportID -> list of channels
 	mu          sync.RWMutex
 	subscribers map[string][]chan string
 }
 
 // NewReportService creates a new ReportService.
-func NewReportService(store store.ReportStore, generator AIGenerator, feishuClient *feishu.Client) *ReportService {
+func NewReportService(st store.ReportStore, generator AIGenerator, feishuClient *feishu.Client, qverisClient *qveris.Client) *ReportService {
 	return &ReportService{
-		store:       store,
+		store:       st,
 		generator:   generator,
 		feishu:      feishuClient,
+		qveris:      qverisClient,
 		subscribers: make(map[string][]chan string),
 	}
 }
@@ -171,6 +173,26 @@ func (s *ReportService) generateReport(id string) {
 			}
 			report.Config.CustomNotes += refText.String()
 			log.Printf("INFO: injected %d Feishu references into report %s", len(refs), id)
+		}
+	}
+
+	// Fetch Qveris comps data if enabled
+	var compsTable string
+	if report.Config.ReportType == model.TypeFinancial &&
+		report.Config.FinancialInfo != nil &&
+		report.Config.FinancialInfo.EnableComps &&
+		report.Config.FinancialInfo.CompsSymbols != "" &&
+		s.qveris != nil && s.qveris.IsConfigured() {
+
+		symbols := strings.Split(report.Config.FinancialInfo.CompsSymbols, ",")
+		metrics, err := s.qveris.FetchCompsData(ctx, symbols)
+		if err != nil {
+			log.Printf("WARNING: failed to fetch comps data: %v", err)
+			report.Config.CustomNotes += "\n\n注意：二级市场 Comps 数据获取失败，请在报告中说明。\n"
+		} else if len(metrics) > 0 {
+			compsTable = qveris.FormatCompsTable(metrics)
+			// Also inject raw data into prompt for AI analysis
+			report.Config.CustomNotes += "\n\n以下是从二级市场获取的可比公司数据，请在报告中加入 Comps 对比分析章节：\n" + compsTable
 		}
 	}
 

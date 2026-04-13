@@ -376,6 +376,8 @@ async function handleSubmit(event) {
                 currency: val('fi-currency'),
                 peer_companies: val('fi-peers'),
                 focus_areas: getCheckedValues('fi-focus-checks'),
+                enable_comps: document.getElementById('fi-enable-comps')?.checked || false,
+                comps_symbols: val('fi-comps-symbols'),
             };
         }
 
@@ -891,6 +893,11 @@ function formatTime(ts) {
     const d = new Date(ts);
     const pad = n => String(n).padStart(2, '0');
     return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function toggleCompsInput() {
+    const enabled = document.getElementById('fi-enable-comps').checked;
+    document.getElementById('comps-input-group').style.display = enabled ? 'block' : 'none';
 }
 
 function val(id) { const el = document.getElementById(id); return el ? el.value.trim() : ''; }
