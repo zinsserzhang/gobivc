@@ -49,21 +49,59 @@ type UploadedFile struct {
 
 // Assignee represents a person assigned to a report.
 type Assignee struct {
-	ID     string `json:"id"`     // Feishu open_id or user_id
+	ID     string `json:"id"`
 	Name   string `json:"name"`
 	Avatar string `json:"avatar,omitempty"`
 }
 
+// ProjectInfo holds structured project details for Pre-DD / Memo.
+type ProjectInfo struct {
+	CompanyName   string   `json:"company_name"`   // 公司全称
+	Industry      string   `json:"industry"`       // 行业领域
+	Round         string   `json:"round"`          // 融资轮次
+	Amount        string   `json:"amount"`         // 融资金额
+	Valuation     string   `json:"valuation"`      // 估值
+	InvestAmount  string   `json:"invest_amount"`  // 拟投金额
+	ShareRatio    string   `json:"share_ratio"`    // 拟占股比
+	LeadInvestor  string   `json:"lead_investor"`  // 领投方
+	CoInvestors   string   `json:"co_investors"`   // 跟投方
+	FoundedYear   string   `json:"founded_year"`   // 成立年份
+	Headquarters  string   `json:"headquarters"`   // 总部所在地
+	EmployeeCount string   `json:"employee_count"` // 员工人数
+	CoreProduct   string   `json:"core_product"`   // 核心产品/服务
+	CoreTeam      string   `json:"core_team"`      // 核心团队背景
+	InvestThesis  string   `json:"invest_thesis"`  // 核心投资逻辑
+	DDFocus       []string `json:"dd_focus"`        // 尽调重点关注领域
+}
+
+// FinancialInfo holds structured inputs for financial analysis.
+type FinancialInfo struct {
+	AnalysisPeriod string   `json:"analysis_period"` // 分析期间
+	Currency       string   `json:"currency"`        // 币种
+	PeerCompanies  string   `json:"peer_companies"`  // 对标公司
+	FocusAreas     []string `json:"focus_areas"`     // 重点关注领域
+}
+
+// IndustryInfo holds structured inputs for industry research.
+type IndustryInfo struct {
+	Region    string `json:"region"`     // 地域范围
+	TimeRange string `json:"time_range"` // 时间范围
+	SubFields string `json:"sub_fields"` // 细分领域
+}
+
 // ReportConfig holds user-specified parameters for report generation.
 type ReportConfig struct {
-	ReportType  ReportType     `json:"report_type"`
-	Topic       string         `json:"topic"`
-	Direction   string         `json:"direction"`
-	Depth       ReportDepth    `json:"depth"`
-	CustomNotes string         `json:"custom_notes"`
-	UseFeishu   bool           `json:"use_feishu"`
-	Files       []UploadedFile `json:"files,omitempty"`
-	Assignees   []Assignee     `json:"assignees,omitempty"`
+	ReportType    ReportType     `json:"report_type"`
+	Topic         string         `json:"topic"`
+	Direction     string         `json:"direction"`
+	Depth         ReportDepth    `json:"depth"`
+	CustomNotes   string         `json:"custom_notes"`
+	UseFeishu     bool           `json:"use_feishu"`
+	Files         []UploadedFile `json:"files,omitempty"`
+	Assignees     []Assignee     `json:"assignees,omitempty"`
+	ProjectInfo   *ProjectInfo   `json:"project_info,omitempty"`
+	FinancialInfo *FinancialInfo `json:"financial_info,omitempty"`
+	IndustryInfo  *IndustryInfo  `json:"industry_info,omitempty"`
 }
 
 // Report is the core entity.
@@ -82,14 +120,17 @@ type Report struct {
 
 // CreateReportRequest is the API request body for creating a new report.
 type CreateReportRequest struct {
-	ReportType  ReportType  `json:"report_type"`
-	Topic       string      `json:"topic"`
-	Direction   string      `json:"direction"`
-	Depth       ReportDepth `json:"depth"`
-	CustomNotes string      `json:"custom_notes"`
-	UseFeishu   bool        `json:"use_feishu"`
-	FileIDs     []string    `json:"file_ids"`
-	Assignees   []Assignee  `json:"assignees"`
+	ReportType    ReportType     `json:"report_type"`
+	Topic         string         `json:"topic"`
+	Direction     string         `json:"direction"`
+	Depth         ReportDepth    `json:"depth"`
+	CustomNotes   string         `json:"custom_notes"`
+	UseFeishu     bool           `json:"use_feishu"`
+	FileIDs       []string       `json:"file_ids"`
+	Assignees     []Assignee     `json:"assignees"`
+	ProjectInfo   *ProjectInfo   `json:"project_info,omitempty"`
+	FinancialInfo *FinancialInfo `json:"financial_info,omitempty"`
+	IndustryInfo  *IndustryInfo  `json:"industry_info,omitempty"`
 }
 
 // UpdateReportRequest is the API request body for updating a report.

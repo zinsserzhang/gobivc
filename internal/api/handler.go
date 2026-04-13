@@ -83,13 +83,16 @@ func (h *Handler) CreateReport(w http.ResponseWriter, r *http.Request) {
 	}
 
 	config := model.ReportConfig{
-		ReportType:  req.ReportType,
-		Topic:       req.Topic,
-		Direction:   req.Direction,
-		Depth:       req.Depth,
-		CustomNotes: req.CustomNotes,
-		UseFeishu:   req.UseFeishu,
-		Assignees:   req.Assignees,
+		ReportType:    req.ReportType,
+		Topic:         req.Topic,
+		Direction:     req.Direction,
+		Depth:         req.Depth,
+		CustomNotes:   req.CustomNotes,
+		UseFeishu:     req.UseFeishu,
+		Assignees:     req.Assignees,
+		ProjectInfo:   req.ProjectInfo,
+		FinancialInfo: req.FinancialInfo,
+		IndustryInfo:  req.IndustryInfo,
 	}
 
 	// Attach uploaded files

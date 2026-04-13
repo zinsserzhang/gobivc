@@ -97,6 +97,13 @@ function openCreate(type) {
     document.getElementById('topic-suggestions').style.display = c.showSuggestions ? 'block' : 'none';
     document.getElementById('file-upload-group').style.display = c.showFiles ? 'block' : 'none';
 
+    // Show/hide structured field groups
+    document.getElementById('fields-project').style.display = (type === 'predd' || type === 'memo') ? 'block' : 'none';
+    document.getElementById('fields-memo').style.display = type === 'memo' ? 'block' : 'none';
+    document.getElementById('fields-ddfocus').style.display = type === 'predd' ? 'block' : 'none';
+    document.getElementById('fields-financial').style.display = type === 'financial' ? 'block' : 'none';
+    document.getElementById('fields-industry').style.display = type === 'industry' ? 'block' : 'none';
+
     // Highlight sidebar
     document.querySelectorAll('.nav-btn[data-view]').forEach(b => b.classList.remove('active'));
     const navBtn = document.querySelector(`.nav-btn[data-view="create-${type}"]`);
@@ -328,16 +335,61 @@ async function handleSubmit(event) {
 
         const useFeishu = document.getElementById('use-feishu')?.checked || false;
 
+        // Collect structured fields
+        const payload = {
+            report_type: reportType,
+            topic, direction, depth,
+            custom_notes: customNotes,
+            use_feishu: useFeishu,
+            file_ids: uploadedFileIDs,
+            assignees: selectedAssignees,
+        };
+
+        if (reportType === 'predd' || reportType === 'memo') {
+            payload.project_info = {
+                company_name: val('pi-company'),
+                industry: val('pi-industry'),
+                round: val('pi-round'),
+                amount: val('pi-amount'),
+                valuation: val('pi-valuation'),
+                founded_year: val('pi-founded'),
+                headquarters: val('pi-hq'),
+                employee_count: val('pi-employees'),
+                core_product: val('pi-product'),
+                core_team: val('pi-team'),
+            };
+            if (reportType === 'memo') {
+                payload.project_info.invest_amount = val('pi-invest');
+                payload.project_info.share_ratio = val('pi-share');
+                payload.project_info.lead_investor = val('pi-lead');
+                payload.project_info.co_investors = val('pi-co');
+                payload.project_info.invest_thesis = val('pi-thesis');
+            }
+            if (reportType === 'predd') {
+                payload.project_info.dd_focus = getCheckedValues('dd-focus-checks');
+            }
+        }
+
+        if (reportType === 'financial') {
+            payload.financial_info = {
+                analysis_period: val('fi-period'),
+                currency: val('fi-currency'),
+                peer_companies: val('fi-peers'),
+                focus_areas: getCheckedValues('fi-focus-checks'),
+            };
+        }
+
+        if (reportType === 'industry') {
+            payload.industry_info = {
+                region: val('ind-region'),
+                time_range: val('ind-time'),
+                sub_fields: val('ind-sub'),
+            };
+        }
+
         const report = await apiCall('/reports', {
             method: 'POST',
-            body: JSON.stringify({
-                report_type: reportType,
-                topic, direction, depth,
-                custom_notes: customNotes,
-                use_feishu: useFeishu,
-                file_ids: uploadedFileIDs,
-                assignees: selectedAssignees,
-            }),
+            body: JSON.stringify(payload),
         });
 
         currentReportId = report.id;
@@ -839,6 +891,13 @@ function formatTime(ts) {
     const d = new Date(ts);
     const pad = n => String(n).padStart(2, '0');
     return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function val(id) { const el = document.getElementById(id); return el ? el.value.trim() : ''; }
+
+function getCheckedValues(containerId) {
+    const checks = document.querySelectorAll('#' + containerId + ' input[type="checkbox"]:checked');
+    return Array.from(checks).map(c => c.value);
 }
 
 function calcDuration(start, end) {

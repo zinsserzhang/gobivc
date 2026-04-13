@@ -241,6 +241,51 @@ func buildUserPrompt(config model.ReportConfig) string {
 		sb.WriteString(fmt.Sprintf("请为我撰写一份关于「%s」的行业研究报告。\n\n", config.Topic))
 	}
 
+	// Inject structured project info
+	if p := config.ProjectInfo; p != nil {
+		sb.WriteString("===== 项目基本信息 =====\n")
+		writeField(&sb, "公司全称", p.CompanyName)
+		writeField(&sb, "所属行业", p.Industry)
+		writeField(&sb, "融资轮次", p.Round)
+		writeField(&sb, "融资金额", p.Amount)
+		writeField(&sb, "估值", p.Valuation)
+		writeField(&sb, "拟投金额", p.InvestAmount)
+		writeField(&sb, "拟占股比", p.ShareRatio)
+		writeField(&sb, "领投方", p.LeadInvestor)
+		writeField(&sb, "跟投方", p.CoInvestors)
+		writeField(&sb, "成立年份", p.FoundedYear)
+		writeField(&sb, "总部所在地", p.Headquarters)
+		writeField(&sb, "员工人数", p.EmployeeCount)
+		writeField(&sb, "核心产品/服务", p.CoreProduct)
+		writeField(&sb, "核心团队背景", p.CoreTeam)
+		writeField(&sb, "核心投资逻辑", p.InvestThesis)
+		if len(p.DDFocus) > 0 {
+			sb.WriteString(fmt.Sprintf("- 尽调重点关注: %s\n", strings.Join(p.DDFocus, "、")))
+		}
+		sb.WriteString("===== 项目信息结束 =====\n\n")
+	}
+
+	// Inject structured financial info
+	if f := config.FinancialInfo; f != nil {
+		sb.WriteString("===== 财务分析参数 =====\n")
+		writeField(&sb, "分析期间", f.AnalysisPeriod)
+		writeField(&sb, "币种", f.Currency)
+		writeField(&sb, "对标公司", f.PeerCompanies)
+		if len(f.FocusAreas) > 0 {
+			sb.WriteString(fmt.Sprintf("- 重点关注: %s\n", strings.Join(f.FocusAreas, "、")))
+		}
+		sb.WriteString("===== 参数结束 =====\n\n")
+	}
+
+	// Inject structured industry info
+	if ind := config.IndustryInfo; ind != nil {
+		sb.WriteString("===== 研究参数 =====\n")
+		writeField(&sb, "地域范围", ind.Region)
+		writeField(&sb, "时间范围", ind.TimeRange)
+		writeField(&sb, "细分领域", ind.SubFields)
+		sb.WriteString("===== 参数结束 =====\n\n")
+	}
+
 	if config.Direction != "" {
 		sb.WriteString(fmt.Sprintf("重点方向：%s\n\n", config.Direction))
 	}
@@ -276,6 +321,12 @@ func buildUserPrompt(config model.ReportConfig) string {
 	sb.WriteString("\n请直接输出Markdown格式的内容，以一级标题开始。")
 
 	return sb.String()
+}
+
+func writeField(sb *strings.Builder, label, value string) {
+	if value != "" {
+		sb.WriteString(fmt.Sprintf("- %s: %s\n", label, value))
+	}
 }
 
 func getMaxTokens(depth model.ReportDepth) int {

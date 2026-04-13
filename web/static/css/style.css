@@ -189,6 +189,36 @@ body {
 .depth-detail { font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
 .depth-time { font-size: 11px; color: var(--text-light); margin-top: 8px; }
 
+/* ===== Structured Fields ===== */
+.structured-fields {
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 16px 20px; margin-bottom: 22px;
+}
+.fields-section-title {
+    font-size: 13px; font-weight: 600; color: var(--text-secondary);
+    margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px;
+}
+.fields-grid {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px 16px;
+    margin-bottom: 12px;
+}
+.fields-grid .form-group { margin-bottom: 0; }
+.fields-grid label { font-size: 13px; font-weight: 500; margin-bottom: 4px; }
+.fields-grid input, .fields-grid select {
+    padding: 7px 10px; font-size: 13px;
+}
+
+.checkbox-group {
+    display: flex; flex-wrap: wrap; gap: 8px 16px;
+}
+.check-item {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 13px; color: var(--text-secondary); cursor: pointer;
+}
+.check-item input[type="checkbox"] {
+    width: 16px; height: 16px; accent-color: var(--primary);
+}
+
 /* ===== Report Type Selector ===== */
 .type-selector { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 .type-option input[type="radio"] { display: none; }

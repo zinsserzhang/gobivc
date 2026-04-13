@@ -93,6 +93,102 @@
                         <span class="form-hint" id="direction-hint">可选，指定报告的重点分析方向</span>
                     </div>
 
+                    <!-- Structured fields: Project Info (Pre-DD / Memo) -->
+                    <div id="fields-project" class="structured-fields" style="display:none">
+                        <div class="fields-section-title">项目信息</div>
+                        <div class="fields-grid">
+                            <div class="form-group"><label>公司全称</label><input type="text" id="pi-company" placeholder="XX科技有限公司"></div>
+                            <div class="form-group"><label>所属行业</label>
+                                <select id="pi-industry"><option value="">请选择</option>
+                                    <option>人工智能</option><option>企业服务/SaaS</option><option>半导体/芯片</option>
+                                    <option>新能源/清洁技术</option><option>生物医药/医疗健康</option><option>智能制造/机器人</option>
+                                    <option>金融科技</option><option>消费/新零售</option><option>Web3/区块链</option>
+                                    <option>自动驾驶/智能汽车</option><option>航空航天/低空经济</option><option>新材料</option>
+                                    <option>教育科技</option><option>物流/供应链</option><option>其他</option>
+                                </select>
+                            </div>
+                            <div class="form-group"><label>融资轮次</label>
+                                <select id="pi-round"><option value="">请选择</option>
+                                    <option>天使轮</option><option>Pre-A</option><option>A轮</option><option>A+轮</option>
+                                    <option>B轮</option><option>C轮</option><option>D轮</option>
+                                    <option>Pre-IPO</option><option>战略融资</option><option>其他</option>
+                                </select>
+                            </div>
+                            <div class="form-group"><label>融资金额</label><input type="text" id="pi-amount" placeholder="如: 5000万人民币"></div>
+                            <div class="form-group"><label>估值</label><input type="text" id="pi-valuation" placeholder="如: 5亿人民币"></div>
+                            <div class="form-group"><label>成立年份</label><input type="text" id="pi-founded" placeholder="如: 2020"></div>
+                            <div class="form-group"><label>总部所在地</label><input type="text" id="pi-hq" placeholder="如: 北京"></div>
+                            <div class="form-group"><label>员工人数</label><input type="text" id="pi-employees" placeholder="如: 150人"></div>
+                        </div>
+                        <div class="form-group"><label>核心产品/服务</label><input type="text" id="pi-product" placeholder="一句话描述核心产品或服务"></div>
+                        <div class="form-group"><label>核心团队背景</label><textarea id="pi-team" rows="2" placeholder="创始人及核心团队的关键背景信息"></textarea></div>
+                    </div>
+
+                    <!-- Extra fields: Memo only -->
+                    <div id="fields-memo" class="structured-fields" style="display:none">
+                        <div class="fields-section-title">交易信息</div>
+                        <div class="fields-grid">
+                            <div class="form-group"><label>拟投金额</label><input type="text" id="pi-invest" placeholder="如: 1000万人民币"></div>
+                            <div class="form-group"><label>拟占股比</label><input type="text" id="pi-share" placeholder="如: 5%"></div>
+                            <div class="form-group"><label>领投方</label><input type="text" id="pi-lead" placeholder="领投机构名称"></div>
+                            <div class="form-group"><label>跟投方</label><input type="text" id="pi-co" placeholder="跟投机构，多个用逗号分隔"></div>
+                        </div>
+                        <div class="form-group"><label>核心投资逻辑</label><textarea id="pi-thesis" rows="2" placeholder="简述看好该项目的核心原因"></textarea></div>
+                    </div>
+
+                    <!-- Extra fields: Pre-DD focus areas -->
+                    <div id="fields-ddfocus" class="structured-fields" style="display:none">
+                        <div class="fields-section-title">尽调重点关注</div>
+                        <div class="checkbox-group" id="dd-focus-checks">
+                            <label class="check-item"><input type="checkbox" value="财务数据核实" checked>财务数据核实</label>
+                            <label class="check-item"><input type="checkbox" value="业务模式验证" checked>业务模式验证</label>
+                            <label class="check-item"><input type="checkbox" value="技术/产品尽调" checked>技术/产品尽调</label>
+                            <label class="check-item"><input type="checkbox" value="团队背景调查">团队背景调查</label>
+                            <label class="check-item"><input type="checkbox" value="法律与合规">法律与合规</label>
+                            <label class="check-item"><input type="checkbox" value="知识产权">知识产权</label>
+                            <label class="check-item"><input type="checkbox" value="客户与供应商">客户与供应商</label>
+                            <label class="check-item"><input type="checkbox" value="市场竞争分析">市场竞争分析</label>
+                            <label class="check-item"><input type="checkbox" value="估值合理性">估值合理性</label>
+                            <label class="check-item"><input type="checkbox" value="交易结构">交易结构</label>
+                        </div>
+                    </div>
+
+                    <!-- Structured fields: Financial Info -->
+                    <div id="fields-financial" class="structured-fields" style="display:none">
+                        <div class="fields-section-title">分析参数</div>
+                        <div class="fields-grid">
+                            <div class="form-group"><label>分析期间</label><input type="text" id="fi-period" placeholder="如: 2021-2024"></div>
+                            <div class="form-group"><label>币种</label>
+                                <select id="fi-currency"><option value="人民币">人民币 (CNY)</option><option value="美元">美元 (USD)</option><option value="港币">港币 (HKD)</option></select>
+                            </div>
+                            <div class="form-group"><label>对标公司</label><input type="text" id="fi-peers" placeholder="多个公司用逗号分隔"></div>
+                        </div>
+                        <div class="fields-section-title">重点关注</div>
+                        <div class="checkbox-group" id="fi-focus-checks">
+                            <label class="check-item"><input type="checkbox" value="盈利能力" checked>盈利能力</label>
+                            <label class="check-item"><input type="checkbox" value="成长性" checked>成长性</label>
+                            <label class="check-item"><input type="checkbox" value="现金流" checked>现金流</label>
+                            <label class="check-item"><input type="checkbox" value="偿债能力">偿债能力</label>
+                            <label class="check-item"><input type="checkbox" value="运营效率">运营效率</label>
+                            <label class="check-item"><input type="checkbox" value="费用结构">费用结构</label>
+                            <label class="check-item"><input type="checkbox" value="资本结构">资本结构</label>
+                        </div>
+                    </div>
+
+                    <!-- Structured fields: Industry Info -->
+                    <div id="fields-industry" class="structured-fields" style="display:none">
+                        <div class="fields-section-title">研究范围</div>
+                        <div class="fields-grid">
+                            <div class="form-group"><label>地域范围</label>
+                                <select id="ind-region"><option value="">不限</option><option>全球</option><option>中国</option><option>中国+全球对比</option><option>北美</option><option>欧洲</option><option>东南亚</option></select>
+                            </div>
+                            <div class="form-group"><label>时间范围</label>
+                                <select id="ind-time"><option value="">不限</option><option>近1年</option><option>近3年</option><option>近5年</option><option>近10年</option></select>
+                            </div>
+                            <div class="form-group"><label>细分领域</label><input type="text" id="ind-sub" placeholder="如: 大模型基础设施、ADAS L4"></div>
+                        </div>
+                    </div>
+
                     <div class="form-group">
                         <label>报告深度</label>
                         <div class="depth-selector">
