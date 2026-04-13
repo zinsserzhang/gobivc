@@ -136,11 +136,11 @@
                              ondragover="event.preventDefault(); this.classList.add('drag-over')"
                              ondragleave="this.classList.remove('drag-over')"
                              ondrop="handleDrop(event)">
-                            <input type="file" id="file-input" multiple accept=".pdf,.docx,.doc,.pptx,.txt,.md,.csv"
+                            <input type="file" id="file-input" multiple accept=".pdf,.docx,.doc,.pptx,.xlsx,.xls,.txt,.md,.csv"
                                    onchange="handleFileSelect(event)" style="display:none">
                             <div class="upload-icon">&#128194;</div>
                             <p>点击上传或拖拽文件到此处</p>
-                            <p class="upload-hint">支持 PDF、DOCX、PPTX、TXT 等格式，单文件最大 50MB</p>
+                            <p class="upload-hint">支持 PDF、DOCX、XLSX、PPTX、TXT 等格式，单文件最大 50MB</p>
                         </div>
                         <div class="file-list" id="file-list"></div>
                         <span class="form-hint">上传 BP、Datapack、财务报表等项目材料</span>

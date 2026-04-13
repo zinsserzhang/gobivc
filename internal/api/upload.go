@@ -124,6 +124,7 @@ func GetUploadedFile(id string) *model.UploadedFile {
 func isAllowedExt(ext string) bool {
 	allowed := map[string]bool{
 		".pdf": true, ".docx": true, ".doc": true, ".pptx": true,
+		".xlsx": true, ".xls": true,
 		".txt": true, ".md": true, ".csv": true, ".json": true,
 	}
 	return allowed[ext]
