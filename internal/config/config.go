@@ -26,6 +26,11 @@ type Config struct {
 	AIAPIKey   string
 	AIModel    string
 	AIBaseURL  string
+
+	// Feishu integration (optional)
+	FeishuAppID     string
+	FeishuAppSecret string
+	FeishuBaseURL   string // https://open.feishu.cn/open-apis
 }
 
 // Load reads configuration from environment variables.
@@ -59,7 +64,16 @@ func Load() *Config {
 		}
 	}
 
+	// Feishu
+	cfg.FeishuAppID = os.Getenv("FEISHU_APP_ID")
+	cfg.FeishuAppSecret = os.Getenv("FEISHU_APP_SECRET")
+	cfg.FeishuBaseURL = getEnv("FEISHU_BASE_URL", "https://open.feishu.cn/open-apis")
+
 	log.Printf("INFO: AI Provider=%s, Model=%s, BaseURL=%s", cfg.AIProvider, cfg.AIModel, cfg.AIBaseURL)
+
+	if cfg.FeishuAppID != "" {
+		log.Println("INFO: Feishu integration enabled")
+	}
 
 	if cfg.APIToken == "" {
 		log.Println("WARNING: API_TOKEN is not set. API is publicly accessible.")

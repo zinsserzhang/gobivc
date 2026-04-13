@@ -33,11 +33,15 @@ func errorResponse(w http.ResponseWriter, status int, message string) {
 	jsonResponse(w, status, map[string]string{"error": message})
 }
 
+// FeishuEnabled tracks whether Feishu integration is active.
+var FeishuEnabled bool
+
 // Health handles GET /health and /api/health
 func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
 	jsonResponse(w, http.StatusOK, map[string]any{
-		"status": "ok",
-		"time":   time.Now().UTC().Format(time.RFC3339),
+		"status":        "ok",
+		"time":          time.Now().UTC().Format(time.RFC3339),
+		"feishu_enabled": FeishuEnabled,
 	})
 }
 
@@ -59,6 +63,7 @@ func (h *Handler) CreateReport(w http.ResponseWriter, r *http.Request) {
 		Direction:   req.Direction,
 		Depth:       req.Depth,
 		CustomNotes: req.CustomNotes,
+		UseFeishu:   req.UseFeishu,
 	}
 
 	report, err := h.svc.CreateReport(config)

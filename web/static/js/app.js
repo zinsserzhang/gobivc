@@ -92,6 +92,19 @@ async function apiCall(url, options = {}) {
     return data;
 }
 
+// ===== Check Feishu Status =====
+async function checkFeishuStatus() {
+    try {
+        const resp = await fetch('/health');
+        const data = await resp.json();
+        if (data.feishu_enabled) {
+            document.getElementById('feishu-group').style.display = 'block';
+            document.getElementById('use-feishu').checked = true; // default on
+        }
+    } catch (e) { /* ignore */ }
+}
+checkFeishuStatus();
+
 // ===== Topic Suggestions =====
 function fillTopic(topic) {
     document.getElementById('topic').value = topic;
@@ -118,9 +131,11 @@ async function handleSubmit(event) {
 
         if (!topic) { toast('请输入研究主题', 'error'); return; }
 
+        const useFeishu = document.getElementById('use-feishu')?.checked || false;
+
         const report = await apiCall('/reports', {
             method: 'POST',
-            body: JSON.stringify({ topic, direction, depth, custom_notes: customNotes }),
+            body: JSON.stringify({ topic, direction, depth, custom_notes: customNotes, use_feishu: useFeishu }),
         });
 
         currentReportId = report.id;

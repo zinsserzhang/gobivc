@@ -30,10 +30,11 @@ type ReportSection struct {
 
 // ReportConfig holds user-specified parameters for report generation.
 type ReportConfig struct {
-	Topic       string      `json:"topic"`       // 研究主题，如 "新能源汽车"
-	Direction   string      `json:"direction"`   // 研究方向，如 "市场规模与增长趋势"
-	Depth       ReportDepth `json:"depth"`        // 报告深度
-	CustomNotes string      `json:"custom_notes"` // 用户自定义备注/要求
+	Topic       string      `json:"topic"`        // 研究主题，如 "新能源汽车"
+	Direction   string      `json:"direction"`    // 研究方向，如 "市场规模与增长趋势"
+	Depth       ReportDepth `json:"depth"`         // 报告深度
+	CustomNotes string      `json:"custom_notes"`  // 用户自定义备注/要求
+	UseFeishu   bool        `json:"use_feishu"`    // 是否检索飞书知识库作为参考
 }
 
 // Report is the core entity representing an industry research report.
@@ -56,6 +57,7 @@ type CreateReportRequest struct {
 	Direction   string      `json:"direction"`
 	Depth       ReportDepth `json:"depth"`
 	CustomNotes string      `json:"custom_notes"`
+	UseFeishu   bool        `json:"use_feishu"`
 }
 
 // Validate checks that required fields are present and depth is valid.

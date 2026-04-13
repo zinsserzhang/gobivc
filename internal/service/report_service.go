@@ -5,9 +5,11 @@ import (
 	"crypto/rand"
 	"fmt"
 	"log"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/zinsserzhang/gobivc/internal/feishu"
 	"github.com/zinsserzhang/gobivc/internal/model"
 	"github.com/zinsserzhang/gobivc/internal/store"
 )
@@ -16,6 +18,7 @@ import (
 type ReportService struct {
 	store     store.ReportStore
 	generator AIGenerator
+	feishu    *feishu.Client
 
 	// SSE stream subscribers: reportID -> list of channels
 	mu          sync.RWMutex
@@ -23,10 +26,11 @@ type ReportService struct {
 }
 
 // NewReportService creates a new ReportService.
-func NewReportService(store store.ReportStore, generator AIGenerator) *ReportService {
+func NewReportService(store store.ReportStore, generator AIGenerator, feishuClient *feishu.Client) *ReportService {
 	return &ReportService{
 		store:       store,
 		generator:   generator,
+		feishu:      feishuClient,
 		subscribers: make(map[string][]chan string),
 	}
 }
@@ -146,6 +150,24 @@ func (s *ReportService) generateReport(id string) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
+
+	// Gather Feishu reference materials if requested
+	if report.Config.UseFeishu && s.feishu != nil && s.feishu.IsConfigured() {
+		refs, err := s.feishu.GatherReferences(ctx, report.Config.Topic, 5)
+		if err != nil {
+			log.Printf("WARNING: failed to gather Feishu references for report %s: %v", id, err)
+		} else if len(refs) > 0 {
+			var refText strings.Builder
+			refText.WriteString("\n\n以下是来自企业内部知识库的参考材料，请在撰写报告时参考整合这些信息：\n\n")
+			for i, ref := range refs {
+				refText.WriteString(fmt.Sprintf("--- 参考材料 %d: %s ---\n", i+1, ref.Title))
+				refText.WriteString(ref.Content)
+				refText.WriteString("\n\n")
+			}
+			report.Config.CustomNotes += refText.String()
+			log.Printf("INFO: injected %d Feishu references into report %s", len(refs), id)
+		}
+	}
 
 	var content string
 

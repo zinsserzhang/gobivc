@@ -12,6 +12,7 @@ import (
 
 	"github.com/zinsserzhang/gobivc/internal/api"
 	"github.com/zinsserzhang/gobivc/internal/config"
+	"github.com/zinsserzhang/gobivc/internal/feishu"
 	"github.com/zinsserzhang/gobivc/internal/service"
 	"github.com/zinsserzhang/gobivc/internal/store"
 )
@@ -31,12 +32,11 @@ func main() {
 	}
 	defer sqliteStore.Close()
 
-	// Recover any reports that were generating when the server last stopped
 	if err := sqliteStore.RecoverPendingReports(); err != nil {
 		log.Printf("WARNING: failed to recover pending reports: %v", err)
 	}
 
-	// Initialize AI generator based on provider
+	// Initialize AI generator
 	var generator service.AIGenerator
 	switch cfg.AIProvider {
 	case config.ProviderClaude:
@@ -45,14 +45,17 @@ func main() {
 		generator = service.NewOpenAIGenerator(cfg.AIAPIKey, cfg.AIModel, cfg.AIBaseURL)
 	}
 
+	// Initialize Feishu client
+	feishuClient := feishu.NewClient(cfg.FeishuAppID, cfg.FeishuAppSecret, cfg.FeishuBaseURL)
+	api.FeishuEnabled = feishuClient.IsConfigured()
+
 	// Initialize service layer
-	reportService := service.NewReportService(sqliteStore, generator)
+	reportService := service.NewReportService(sqliteStore, generator, feishuClient)
 
 	// Initialize API handler and router
 	handler := api.NewHandler(reportService)
 	router := api.NewRouter(handler)
 
-	// Apply middleware chain
 	httpHandler := api.Chain(
 		router,
 		api.RecoverMiddleware,
@@ -66,22 +69,22 @@ func main() {
 		Addr:              addr,
 		Handler:           httpHandler,
 		ReadHeaderTimeout: 10 * time.Second,
-		// Long write timeout for streaming
-		WriteTimeout: 15 * time.Minute,
-		IdleTimeout:  2 * time.Minute,
+		WriteTimeout:      15 * time.Minute,
+		IdleTimeout:       2 * time.Minute,
 	}
 
-	// Start server in a goroutine
 	go func() {
 		log.Printf("GobiVC server starting on http://localhost%s", addr)
 		log.Printf("AI provider: %s, model: %s", cfg.AIProvider, cfg.AIModel)
 		log.Printf("Database: %s", dbPath)
+		if feishuClient.IsConfigured() {
+			log.Printf("Feishu integration: enabled")
+		}
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("Server failed: %v", err)
 		}
 	}()
 
-	// Wait for interrupt signal for graceful shutdown
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
