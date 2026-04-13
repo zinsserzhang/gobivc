@@ -39,25 +39,24 @@ func (c *Client) CheckAvailable(ctx context.Context) bool {
 		cmd = exec.CommandContext(ctx, c.CLIPath, "auth", "status", "--output", "json")
 	}
 
-	// Use Output() (stdout only) instead of CombinedOutput() to avoid stderr noise
-	out, err := cmd.Output()
-	if err != nil {
-		// Even on exit status != 0, check if stdout had useful output
-		if len(out) == 0 {
-			log.Printf("INFO: feishu: lark-cli not available: %v", err)
-			c.enabled = false
-			return false
-		}
-	}
-
+	// lark-cli may exit with non-zero even when it outputs valid JSON,
+	// so ignore the error and just check the combined output.
+	out, _ := cmd.CombinedOutput()
 	outStr := string(out)
+
 	if strings.Contains(outStr, "appId") || strings.Contains(outStr, "identity") {
 		c.enabled = true
 		log.Printf("INFO: feishu: lark-cli authenticated")
 		return true
 	}
 
-	log.Printf("INFO: feishu: lark-cli check output: %s", strings.TrimSpace(outStr))
+	// Check if lark-cli binary exists at all
+	if _, lookErr := exec.LookPath(c.CLIPath); lookErr != nil {
+		log.Printf("INFO: feishu: lark-cli binary not found")
+	} else {
+		log.Printf("INFO: feishu: lark-cli auth check output: %s", strings.TrimSpace(outStr))
+	}
+
 	c.enabled = false
 	return false
 }
