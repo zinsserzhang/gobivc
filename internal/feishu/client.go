@@ -32,30 +32,32 @@ func NewClient() *Client {
 
 // CheckAvailable verifies lark-cli is installed and authenticated.
 func (c *Client) CheckAvailable(ctx context.Context) bool {
-	var out []byte
-	var err error
-
+	var cmd *exec.Cmd
 	if c.CLIPath == "npx" {
-		out, err = exec.CommandContext(ctx, "npx", "@larksuite/cli", "auth", "status", "--output", "json").CombinedOutput()
+		cmd = exec.CommandContext(ctx, "npx", "@larksuite/cli", "auth", "status", "--output", "json")
 	} else {
-		out, err = exec.CommandContext(ctx, c.CLIPath, "auth", "status", "--output", "json").CombinedOutput()
+		cmd = exec.CommandContext(ctx, c.CLIPath, "auth", "status", "--output", "json")
 	}
 
+	// Use Output() (stdout only) instead of CombinedOutput() to avoid stderr noise
+	out, err := cmd.Output()
 	if err != nil {
-		log.Printf("INFO: feishu: lark-cli not available: %v", err)
-		c.enabled = false
-		return false
+		// Even on exit status != 0, check if stdout had useful output
+		if len(out) == 0 {
+			log.Printf("INFO: feishu: lark-cli not available: %v", err)
+			c.enabled = false
+			return false
+		}
 	}
 
 	outStr := string(out)
-	// lark-cli is available if we can see any identity (user or bot)
-	if strings.Contains(outStr, "appId") || strings.Contains(outStr, "open_id") || strings.Contains(outStr, "identity") {
+	if strings.Contains(outStr, "appId") || strings.Contains(outStr, "identity") {
 		c.enabled = true
-		log.Printf("INFO: feishu: lark-cli available, auth output: %s", strings.TrimSpace(outStr))
+		log.Printf("INFO: feishu: lark-cli authenticated")
 		return true
 	}
 
-	log.Printf("INFO: feishu: lark-cli auth status: %s", outStr)
+	log.Printf("INFO: feishu: lark-cli check output: %s", strings.TrimSpace(outStr))
 	c.enabled = false
 	return false
 }
@@ -75,7 +77,8 @@ func (c *Client) run(ctx context.Context, args ...string) ([]byte, error) {
 		cmd = exec.CommandContext(ctx, c.CLIPath, args...)
 	}
 
-	out, err := cmd.CombinedOutput()
+	// Use Output() to only capture stdout, ignoring stderr warnings
+	out, err := cmd.Output()
 	if err != nil {
 		return out, fmt.Errorf("lark-cli %s failed: %w\noutput: %s", strings.Join(args, " "), err, string(out))
 	}
