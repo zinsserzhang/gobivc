@@ -59,11 +59,20 @@ func (h *Handler) CreateReport(w http.ResponseWriter, r *http.Request) {
 	}
 
 	config := model.ReportConfig{
+		ReportType:  req.ReportType,
 		Topic:       req.Topic,
 		Direction:   req.Direction,
 		Depth:       req.Depth,
 		CustomNotes: req.CustomNotes,
 		UseFeishu:   req.UseFeishu,
+	}
+
+	// Attach uploaded files
+	for _, fid := range req.FileIDs {
+		uf := GetUploadedFile(fid)
+		if uf != nil {
+			config.Files = append(config.Files, *uf)
+		}
 	}
 
 	report, err := h.svc.CreateReport(config)

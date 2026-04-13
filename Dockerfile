@@ -17,7 +17,7 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
 # Runtime image with Node.js for lark-cli
 FROM alpine:3.20
 
-RUN apk add --no-cache ca-certificates tzdata nodejs npm curl && \
+RUN apk add --no-cache ca-certificates tzdata nodejs npm curl poppler-utils && \
     npm install -g @larksuite/cli && \
     adduser -D -H -u 1000 gobivc
 

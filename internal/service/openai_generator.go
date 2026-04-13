@@ -213,7 +213,7 @@ func parseOpenAISSEStream(reader io.Reader, callback StreamCallback) (string, er
 
 // buildOpenAIMessages constructs the messages array for the OpenAI-compatible API.
 func buildOpenAIMessages(config model.ReportConfig) []openaiMessage {
-	systemPrompt := buildSystemPrompt()
+	systemPrompt := buildSystemPrompt(config)
 	userPrompt := buildUserPrompt(config)
 	return []openaiMessage{
 		{Role: "system", Content: systemPrompt},

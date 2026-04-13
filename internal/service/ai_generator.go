@@ -70,7 +70,7 @@ type claudeResponse struct {
 }
 
 func (g *ClaudeGenerator) Generate(ctx context.Context, config model.ReportConfig) (string, error) {
-	systemPrompt := buildSystemPrompt()
+	systemPrompt := buildSystemPrompt(config)
 	userPrompt := buildUserPrompt(config)
 	maxTokens := getMaxTokens(config.Depth)
 
@@ -131,8 +131,60 @@ func (g *ClaudeGenerator) Generate(ctx context.Context, config model.ReportConfi
 	return result.String(), nil
 }
 
-func buildSystemPrompt() string {
-	return `你是一位顶级的风险投资行业研究分析师，拥有丰富的行业研究和投资分析经验。你需要生成专业、严谨、有深度的行业研究报告。
+func buildSystemPrompt(config model.ReportConfig) string {
+	switch config.ReportType {
+	case model.TypeDDChecklist:
+		return `你是一位顶级风险投资机构的投资总监，拥有丰富的投资尽职调查经验。你需要根据提供的项目材料（BP、Datapack等），生成一份专业的投资尽调清单。
+
+要求：
+1. 使用Markdown格式输出
+2. 基于提供的项目材料内容，针对性地生成尽调要点
+3. 涵盖尽调的各个维度，标注优先级和关键风险点
+4. 使用中文撰写
+
+尽调清单应涵盖以下维度（根据项目类型可调整）：
+- 公司基本情况核实
+- 业务模式与商业逻辑验证
+- 财务数据核实与分析
+- 技术/产品尽调
+- 市场与竞争尽调
+- 团队背景调查
+- 法律与合规尽调
+- 知识产权尽调
+- 客户与供应商访谈清单
+- 关键风险点与红旗事项（Red Flags）
+- 估值合理性分析
+- 交易结构建议
+
+每个维度下列出具体的尽调事项、需要获取的文件/数据、访谈对象、以及该项的风险等级（高/中/低）。`
+
+	case model.TypeInvestmentMemo:
+		return `你是一位顶级风险投资机构的投资经理，擅长撰写投资备忘录和立项材料。你需要根据提供的项目材料（BP、Datapack等），生成一份可供投委会审议的投资备忘录。
+
+要求：
+1. 使用Markdown格式输出
+2. 基于提供的项目材料，提炼关键信息并加入专业分析
+3. 逻辑严谨、数据详实、结论清晰
+4. 使用中文撰写
+
+投资备忘录应包含以下章节：
+- 项目概览（一页纸摘要）
+- 投资亮点（Investment Highlights）
+- 公司介绍与发展历程
+- 行业分析与市场机会
+- 商业模式分析
+- 产品/技术分析
+- 竞争格局与竞争优势
+- 财务分析与预测
+- 团队评估
+- 估值分析与交易条款
+- 投资逻辑与论点（Investment Thesis）
+- 主要风险与缓释措施
+- 退出路径分析
+- 投资建议与结论`
+
+	default:
+		return `你是一位顶级的风险投资行业研究分析师，拥有丰富的行业研究和投资分析经验。你需要生成专业、严谨、有深度的行业研究报告。
 
 报告要求：
 1. 使用Markdown格式输出
@@ -154,31 +206,54 @@ func buildSystemPrompt() string {
 - 投资机会与建议
 - 风险提示
 - 总结与展望`
+	}
 }
 
 func buildUserPrompt(config model.ReportConfig) string {
 	var sb strings.Builder
 
-	sb.WriteString(fmt.Sprintf("请为我撰写一份关于「%s」的行业研究报告。\n\n", config.Topic))
+	switch config.ReportType {
+	case model.TypeDDChecklist:
+		sb.WriteString(fmt.Sprintf("请为「%s」项目生成一份投资尽职调查清单。\n\n", config.Topic))
+	case model.TypeInvestmentMemo:
+		sb.WriteString(fmt.Sprintf("请为「%s」项目撰写一份投资备忘录（立项材料）。\n\n", config.Topic))
+	default:
+		sb.WriteString(fmt.Sprintf("请为我撰写一份关于「%s」的行业研究报告。\n\n", config.Topic))
+	}
 
 	if config.Direction != "" {
-		sb.WriteString(fmt.Sprintf("重点研究方向：%s\n\n", config.Direction))
+		sb.WriteString(fmt.Sprintf("重点方向：%s\n\n", config.Direction))
 	}
 
 	switch config.Depth {
 	case model.DepthBrief:
-		sb.WriteString("报告深度：概览级别。请提供简洁的行业概览，重点突出关键数据和核心结论，篇幅控制在2000字左右。\n")
+		sb.WriteString("深度：概览级别，重点突出关键要点，篇幅精简。\n")
 	case model.DepthStandard:
-		sb.WriteString("报告深度：标准分析。请提供全面的行业分析，涵盖市场规模、竞争格局、技术趋势和投资建议，篇幅控制在5000字左右。\n")
+		sb.WriteString("深度：标准分析，涵盖各核心维度。\n")
 	case model.DepthDeep:
-		sb.WriteString("报告深度：深度研究。请提供详尽的深度研究报告，包含详细的数据分析、产业链拆解、企业对比、投资逻辑推演，篇幅控制在10000字左右。\n")
+		sb.WriteString("深度：详尽深度分析，尽可能全面详细。\n")
+	}
+
+	// Attach uploaded file contents
+	if len(config.Files) > 0 {
+		sb.WriteString("\n\n===== 以下是项目提供的材料，请基于这些材料进行分析 =====\n\n")
+		for i, f := range config.Files {
+			sb.WriteString(fmt.Sprintf("--- 材料 %d: %s ---\n", i+1, f.Name))
+			if f.Text != "" {
+				sb.WriteString(f.Text)
+			} else {
+				sb.WriteString("（该文件未能提取文本内容）")
+			}
+			sb.WriteString("\n\n")
+		}
+		sb.WriteString("===== 项目材料结束 =====\n\n")
 	}
 
 	if config.CustomNotes != "" {
 		sb.WriteString(fmt.Sprintf("\n用户特别要求：%s\n", config.CustomNotes))
 	}
 
-	sb.WriteString("\n请直接输出Markdown格式的报告内容，以一级标题开始。")
+	sb.WriteString("\n请直接输出Markdown格式的内容，以一级标题开始。")
 
 	return sb.String()
 }

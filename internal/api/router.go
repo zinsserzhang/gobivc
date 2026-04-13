@@ -13,6 +13,15 @@ func NewRouter(handler *Handler) http.Handler {
 	mux.HandleFunc("/health", handler.Health)
 	mux.HandleFunc("/api/health", handler.Health)
 
+	// File upload
+	mux.HandleFunc("/api/uploads", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			handler.HandleUpload(w, r)
+		} else {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
 	// API routes
 	mux.HandleFunc("/api/reports", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {

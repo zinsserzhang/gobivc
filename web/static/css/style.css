@@ -168,6 +168,54 @@ body {
 .depth-detail { font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
 .depth-time { font-size: 11px; color: var(--text-light); margin-top: 8px; }
 
+/* ===== Report Type Selector ===== */
+.type-selector { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.type-option input[type="radio"] { display: none; }
+.type-card {
+    border: 2px solid var(--border); border-radius: var(--radius);
+    padding: 14px 12px; text-align: center; cursor: pointer;
+    transition: all var(--transition);
+}
+.type-card:hover { border-color: var(--primary-border); background: var(--primary-light); }
+.type-option input:checked + .type-card {
+    border-color: var(--primary); background: var(--primary-light);
+    box-shadow: 0 0 0 1px var(--primary);
+}
+.type-icon { font-size: 28px; margin-bottom: 4px; }
+.type-title { font-size: 15px; font-weight: 600; margin-bottom: 2px; }
+.type-desc { font-size: 12px; color: var(--text-secondary); }
+
+/* ===== File Upload ===== */
+.upload-area {
+    border: 2px dashed var(--border); border-radius: var(--radius);
+    padding: 30px 20px; text-align: center; cursor: pointer;
+    transition: all var(--transition); color: var(--text-secondary);
+}
+.upload-area:hover, .upload-area.drag-over {
+    border-color: var(--primary); background: var(--primary-light); color: var(--primary);
+}
+.upload-icon { font-size: 32px; margin-bottom: 6px; }
+.upload-hint { font-size: 12px; color: var(--text-light); margin-top: 4px; }
+
+.file-list { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+.file-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 12px; background: var(--bg);
+    border: 1px solid var(--border); border-radius: var(--radius-sm);
+    font-size: 13px;
+}
+.file-item-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-item-size { color: var(--text-light); font-size: 12px; flex-shrink: 0; }
+.file-item-status { font-size: 12px; flex-shrink: 0; }
+.file-item-status.success { color: var(--success); }
+.file-item-status.error { color: var(--danger); }
+.file-item-status.uploading { color: var(--info); }
+.file-item-remove {
+    background: none; border: none; color: var(--text-light);
+    cursor: pointer; font-size: 16px; padding: 0 4px;
+}
+.file-item-remove:hover { color: var(--danger); }
+
 /* ===== Feishu Toggle ===== */
 .feishu-group {
     background: #f0f5ff;

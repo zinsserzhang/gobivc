@@ -44,13 +44,44 @@
             <!-- Create Report View -->
             <div id="view-create" class="view active">
                 <div class="page-header">
-                    <h2>生成行业研究报告</h2>
-                    <p>配置研究参数，AI 将为您生成专业的行业研究报告</p>
+                    <h2>生成报告</h2>
+                    <p>选择报告类型，配置参数，AI 将为您生成专业内容</p>
                 </div>
 
                 <form id="report-form" class="report-form" onsubmit="handleSubmit(event)">
+                    <!-- Report Type Selector -->
                     <div class="form-group">
-                        <label for="topic">研究主题 <span class="required">*</span></label>
+                        <label>报告类型</label>
+                        <div class="type-selector">
+                            <label class="type-option">
+                                <input type="radio" name="report_type" value="industry" checked onchange="onTypeChange()">
+                                <div class="type-card">
+                                    <div class="type-icon">&#128202;</div>
+                                    <div class="type-title">行业研究报告</div>
+                                    <div class="type-desc">市场分析、竞争格局、投资建议</div>
+                                </div>
+                            </label>
+                            <label class="type-option">
+                                <input type="radio" name="report_type" value="checklist" onchange="onTypeChange()">
+                                <div class="type-card">
+                                    <div class="type-icon">&#9745;</div>
+                                    <div class="type-title">尽调清单</div>
+                                    <div class="type-desc">投资尽职调查要点与检查项</div>
+                                </div>
+                            </label>
+                            <label class="type-option">
+                                <input type="radio" name="report_type" value="memo" onchange="onTypeChange()">
+                                <div class="type-card">
+                                    <div class="type-icon">&#128221;</div>
+                                    <div class="type-title">投资备忘录</div>
+                                    <div class="type-desc">立项材料 / 投委会审议文件</div>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="topic" id="topic-label">研究主题 <span class="required">*</span></label>
                         <input type="text" id="topic" name="topic" autocomplete="off"
                                placeholder="输入行业或细分领域..."
                                required>
@@ -114,6 +145,23 @@
                                 </div>
                             </label>
                         </div>
+                    </div>
+
+                    <!-- File Upload (for DD checklist and investment memo) -->
+                    <div class="form-group" id="file-upload-group" style="display:none">
+                        <label>上传项目材料</label>
+                        <div class="upload-area" id="upload-area" onclick="document.getElementById('file-input').click()"
+                             ondragover="event.preventDefault(); this.classList.add('drag-over')"
+                             ondragleave="this.classList.remove('drag-over')"
+                             ondrop="handleDrop(event)">
+                            <input type="file" id="file-input" multiple accept=".pdf,.docx,.doc,.pptx,.txt,.md,.csv"
+                                   onchange="handleFileSelect(event)" style="display:none">
+                            <div class="upload-icon">&#128194;</div>
+                            <p>点击上传或拖拽文件到此处</p>
+                            <p class="upload-hint">支持 PDF、DOCX、PPTX、TXT 等格式，单文件最大 50MB</p>
+                        </div>
+                        <div class="file-list" id="file-list"></div>
+                        <span class="form-hint">上传 BP（商业计划书）、Datapack、财务报表等尽调材料</span>
                     </div>
 
                     <!-- Feishu integration (shown only when enabled) -->

@@ -33,7 +33,7 @@ type claudeStreamRequest struct {
 
 // GenerateStream generates content using the Claude API with streaming.
 func (g *ClaudeGenerator) GenerateStream(ctx context.Context, config model.ReportConfig, callback StreamCallback) (string, error) {
-	systemPrompt := buildSystemPrompt()
+	systemPrompt := buildSystemPrompt(config)
 	userPrompt := buildUserPrompt(config)
 	maxTokens := getMaxTokens(config.Depth)
 

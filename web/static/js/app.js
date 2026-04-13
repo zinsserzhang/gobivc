@@ -105,6 +105,120 @@ async function checkFeishuStatus() {
 }
 checkFeishuStatus();
 
+// ===== Report Type Switching =====
+let uploadedFileIDs = [];
+
+function onTypeChange() {
+    const type = document.querySelector('input[name="report_type"]:checked').value;
+    const fileGroup = document.getElementById('file-upload-group');
+    const topicLabel = document.getElementById('topic-label');
+    const topicInput = document.getElementById('topic');
+    const suggestionsEl = document.getElementById('topic-suggestions');
+
+    if (type === 'checklist' || type === 'memo') {
+        fileGroup.style.display = 'block';
+        topicLabel.innerHTML = '项目名称 <span class="required">*</span>';
+        topicInput.placeholder = '例如：XX科技 A轮融资项目...';
+        suggestionsEl.style.display = 'none';
+    } else {
+        fileGroup.style.display = 'none';
+        topicLabel.innerHTML = '研究主题 <span class="required">*</span>';
+        topicInput.placeholder = '输入行业或细分领域...';
+        suggestionsEl.style.display = 'block';
+    }
+}
+
+// ===== File Upload =====
+function handleFileSelect(event) {
+    const files = event.target.files;
+    if (files.length > 0) uploadFiles(files);
+    event.target.value = '';
+}
+
+function handleDrop(event) {
+    event.preventDefault();
+    event.target.classList.remove('drag-over');
+    const files = event.dataTransfer.files;
+    if (files.length > 0) uploadFiles(files);
+}
+
+async function uploadFiles(files) {
+    const formData = new FormData();
+    for (const f of files) {
+        formData.append('files', f);
+    }
+
+    const listEl = document.getElementById('file-list');
+
+    // Show uploading state
+    for (const f of files) {
+        const el = document.createElement('div');
+        el.className = 'file-item';
+        el.id = 'file-pending-' + f.name;
+        el.innerHTML = `
+            <span class="file-item-name">${escapeHtml(f.name)}</span>
+            <span class="file-item-size">${formatFileSize(f.size)}</span>
+            <span class="file-item-status uploading">上传中...</span>
+        `;
+        listEl.appendChild(el);
+    }
+
+    try {
+        const token = getApiToken();
+        const headers = {};
+        if (token) headers['Authorization'] = 'Bearer ' + token;
+
+        const resp = await fetch('/api/uploads', { method: 'POST', headers, body: formData });
+        const data = await resp.json();
+
+        if (!resp.ok) throw new Error(data.error || '上传失败');
+
+        // Remove pending items
+        for (const f of files) {
+            const el = document.getElementById('file-pending-' + f.name);
+            if (el) el.remove();
+        }
+
+        // Add successful items
+        for (const uf of data) {
+            uploadedFileIDs.push(uf.id);
+            const el = document.createElement('div');
+            el.className = 'file-item';
+            el.dataset.fileId = uf.id;
+            const textLen = uf.text ? uf.text.length : 0;
+            el.innerHTML = `
+                <span class="file-item-name">${escapeHtml(uf.name)}</span>
+                <span class="file-item-size">${formatFileSize(uf.size)}</span>
+                <span class="file-item-status success">${textLen > 0 ? '已提取 ' + textLen + ' 字' : '已上传'}</span>
+                <button type="button" class="file-item-remove" onclick="removeFile('${uf.id}', this)">&#10005;</button>
+            `;
+            listEl.appendChild(el);
+        }
+        toast(`成功上传 ${data.length} 个文件`, 'success');
+    } catch (err) {
+        // Mark as failed
+        for (const f of files) {
+            const el = document.getElementById('file-pending-' + f.name);
+            if (el) {
+                el.querySelector('.file-item-status').className = 'file-item-status error';
+                el.querySelector('.file-item-status').textContent = '失败';
+            }
+        }
+        toast('上传失败: ' + err.message, 'error');
+    }
+}
+
+function removeFile(fileId, btn) {
+    uploadedFileIDs = uploadedFileIDs.filter(id => id !== fileId);
+    btn.closest('.file-item').remove();
+}
+
+function formatFileSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024*1024) return (bytes/1024).toFixed(1) + ' KB';
+    return (bytes/1024/1024).toFixed(1) + ' MB';
+}
+
 // ===== Topic Suggestions =====
 function fillTopic(topic) {
     document.getElementById('topic').value = topic;
@@ -124,18 +238,25 @@ async function handleSubmit(event) {
 
     try {
         const form = document.getElementById('report-form');
+        const reportType = form.querySelector('input[name="report_type"]:checked').value;
         const topic = form.topic.value.trim();
         const direction = form.direction.value.trim();
         const depth = form.querySelector('input[name="depth"]:checked').value;
         const customNotes = form.custom_notes.value.trim();
 
-        if (!topic) { toast('请输入研究主题', 'error'); return; }
+        if (!topic) { toast('请输入主题/项目名称', 'error'); return; }
 
         const useFeishu = document.getElementById('use-feishu')?.checked || false;
 
         const report = await apiCall('/reports', {
             method: 'POST',
-            body: JSON.stringify({ topic, direction, depth, custom_notes: customNotes, use_feishu: useFeishu }),
+            body: JSON.stringify({
+                report_type: reportType,
+                topic, direction, depth,
+                custom_notes: customNotes,
+                use_feishu: useFeishu,
+                file_ids: uploadedFileIDs,
+            }),
         });
 
         currentReportId = report.id;
@@ -152,6 +273,10 @@ async function handleSubmit(event) {
 
         form.reset();
         form.querySelector('input[name="depth"][value="standard"]').checked = true;
+        form.querySelector('input[name="report_type"][value="industry"]').checked = true;
+        uploadedFileIDs = [];
+        document.getElementById('file-list').innerHTML = '';
+        onTypeChange();
     } catch (err) {
         toast('创建失败: ' + err.message, 'error');
     } finally {
@@ -301,7 +426,9 @@ function renderReportList(reports) {
                 <div class="report-card-meta">
                     <span>${escapeHtml(r.topic)}</span>
                     ${r.direction ? `<span>${escapeHtml(r.direction)}</span>` : ''}
-                    <span class="badge-depth">${depthLabel(r.depth)}</span>
+                    <span class="badge-depth">${reportTypeLabel(r.report_type)}</span>
+                        <span class="badge-depth">${depthLabel(r.depth)}</span>
+                        ${r.file_count > 0 ? '<span>&#128206; ' + r.file_count + ' 份材料</span>' : ''}
                     <span>${formatTime(r.created_at)}</span>
                 </div>
             </div>
@@ -509,6 +636,10 @@ function escapeHtml(str) {
 
 function statusLabel(s) {
     return { pending: '等待中', generating: '生成中', completed: '已完成', failed: '失败' }[s] || s;
+}
+
+function reportTypeLabel(t) {
+    return { industry: '行业研究', checklist: '尽调清单', memo: '投资备忘录' }[t] || t || '行业研究';
 }
 
 function depthLabel(d) {
