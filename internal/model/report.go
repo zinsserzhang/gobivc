@@ -6,10 +6,10 @@ import "time"
 type ReportType string
 
 const (
-	TypePreDD          ReportType = "predd"      // Pre-DD 尽调
-	TypeInvestmentMemo ReportType = "memo"       // 立项报告
-	TypeFinancial      ReportType = "financial"  // 财务分析
-	TypeIndustryReport ReportType = "industry"   // 行业研究报告
+	TypePreDD          ReportType = "predd"
+	TypeInvestmentMemo ReportType = "memo"
+	TypeFinancial      ReportType = "financial"
+	TypeIndustryReport ReportType = "industry"
 )
 
 // ReportDepth defines the analysis depth.
@@ -44,18 +44,26 @@ type UploadedFile struct {
 	Name     string `json:"name"`
 	Size     int64  `json:"size"`
 	MimeType string `json:"mime_type"`
-	Text     string `json:"text,omitempty"` // extracted text content
+	Text     string `json:"text,omitempty"`
+}
+
+// Assignee represents a person assigned to a report.
+type Assignee struct {
+	ID     string `json:"id"`     // Feishu open_id or user_id
+	Name   string `json:"name"`
+	Avatar string `json:"avatar,omitempty"`
 }
 
 // ReportConfig holds user-specified parameters for report generation.
 type ReportConfig struct {
-	ReportType  ReportType   `json:"report_type"`   // 报告类型
-	Topic       string       `json:"topic"`          // 项目/行业名称
-	Direction   string       `json:"direction"`      // 研究方向或侧重点
-	Depth       ReportDepth  `json:"depth"`           // 报告深度
-	CustomNotes string       `json:"custom_notes"`    // 用户自定义要求
-	UseFeishu   bool         `json:"use_feishu"`      // 检索飞书知识库
-	Files       []UploadedFile `json:"files,omitempty"` // 上传的项目材料
+	ReportType  ReportType     `json:"report_type"`
+	Topic       string         `json:"topic"`
+	Direction   string         `json:"direction"`
+	Depth       ReportDepth    `json:"depth"`
+	CustomNotes string         `json:"custom_notes"`
+	UseFeishu   bool           `json:"use_feishu"`
+	Files       []UploadedFile `json:"files,omitempty"`
+	Assignees   []Assignee     `json:"assignees,omitempty"`
 }
 
 // Report is the core entity.
@@ -80,7 +88,13 @@ type CreateReportRequest struct {
 	Depth       ReportDepth `json:"depth"`
 	CustomNotes string      `json:"custom_notes"`
 	UseFeishu   bool        `json:"use_feishu"`
-	FileIDs     []string    `json:"file_ids"` // references to uploaded files
+	FileIDs     []string    `json:"file_ids"`
+	Assignees   []Assignee  `json:"assignees"`
+}
+
+// UpdateReportRequest is the API request body for updating a report.
+type UpdateReportRequest struct {
+	Title string `json:"title,omitempty"`
 }
 
 // Validate checks that required fields are present.
@@ -90,11 +104,10 @@ func (r *CreateReportRequest) Validate() string {
 	}
 	switch r.ReportType {
 	case TypePreDD, TypeInvestmentMemo, TypeFinancial, TypeIndustryReport:
-		// valid
 	case "":
 		r.ReportType = TypeIndustryReport
 	default:
-		return "report_type must be one of: industry, checklist, memo"
+		return "report_type must be one of: predd, memo, financial, industry"
 	}
 	switch r.Depth {
 	case DepthBrief, DepthStandard, DepthDeep:
@@ -116,6 +129,7 @@ type ReportListItem struct {
 	Status      ReportStatus `json:"status"`
 	Title       string       `json:"title"`
 	FileCount   int          `json:"file_count"`
+	Assignees   []Assignee   `json:"assignees,omitempty"`
 	CreatedAt   time.Time    `json:"created_at"`
 	CompletedAt *time.Time   `json:"completed_at,omitempty"`
 }
@@ -131,6 +145,7 @@ func (r *Report) ToListItem() ReportListItem {
 		Status:      r.Status,
 		Title:       r.Title,
 		FileCount:   len(r.Config.Files),
+		Assignees:   r.Config.Assignees,
 		CreatedAt:   r.CreatedAt,
 		CompletedAt: r.CompletedAt,
 	}

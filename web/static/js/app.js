@@ -136,11 +136,76 @@ async function checkFeishuStatus() {
         const data = await resp.json();
         if (data.feishu_enabled) {
             document.getElementById('feishu-group').style.display = 'block';
-            document.getElementById('use-feishu').checked = true; // default on
+            document.getElementById('use-feishu').checked = true;
+            document.getElementById('assignee-group').style.display = 'block';
         }
     } catch (e) { /* ignore */ }
 }
 checkFeishuStatus();
+
+// ===== Assignees (Feishu Contacts) =====
+let selectedAssignees = [];
+let contactSearchTimer = null;
+
+function debounceContactSearch() {
+    if (contactSearchTimer) clearTimeout(contactSearchTimer);
+    contactSearchTimer = setTimeout(() => searchContacts(), 300);
+}
+
+async function searchContacts() {
+    const query = document.getElementById('assignee-search').value.trim();
+    const dropdown = document.getElementById('assignee-dropdown');
+    if (!query) { dropdown.classList.remove('open'); return; }
+
+    try {
+        const contacts = await apiCall('/contacts?q=' + encodeURIComponent(query));
+        if (contacts.length === 0) {
+            dropdown.innerHTML = '<div class="assignee-dropdown-item" style="color:var(--text-light)">未找到匹配的成员</div>';
+        } else {
+            dropdown.innerHTML = contacts.map(c => `
+                <div class="assignee-dropdown-item" onclick="selectAssignee('${escapeHtml(c.id)}','${escapeHtml(c.name)}','${escapeHtml(c.avatar || '')}')">
+                    <div class="assignee-avatar">${c.avatar ? '<img src="'+escapeHtml(c.avatar)+'">' : c.name.charAt(0)}</div>
+                    <span>${escapeHtml(c.name)}</span>
+                </div>
+            `).join('');
+        }
+        dropdown.classList.add('open');
+    } catch (err) {
+        dropdown.innerHTML = '<div class="assignee-dropdown-item" style="color:var(--danger)">搜索失败</div>';
+        dropdown.classList.add('open');
+    }
+}
+
+function selectAssignee(id, name, avatar) {
+    if (selectedAssignees.find(a => a.id === id)) return; // already selected
+    selectedAssignees.push({ id, name, avatar });
+    renderAssigneeTags();
+    document.getElementById('assignee-search').value = '';
+    document.getElementById('assignee-dropdown').classList.remove('open');
+}
+
+function removeAssignee(id) {
+    selectedAssignees = selectedAssignees.filter(a => a.id !== id);
+    renderAssigneeTags();
+}
+
+function renderAssigneeTags() {
+    const el = document.getElementById('assignee-tags');
+    el.innerHTML = selectedAssignees.map(a => `
+        <span class="assignee-tag">
+            <span class="assignee-tag-avatar">${a.name.charAt(0)}</span>
+            ${escapeHtml(a.name)}
+            <button type="button" class="assignee-tag-remove" onclick="removeAssignee('${a.id}')">&#10005;</button>
+        </span>
+    `).join('');
+}
+
+// Close dropdown when clicking outside
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('.assignee-input-wrap')) {
+        document.getElementById('assignee-dropdown')?.classList.remove('open');
+    }
+});
 
 // ===== File Upload =====
 let uploadedFileIDs = [];
@@ -271,6 +336,7 @@ async function handleSubmit(event) {
                 custom_notes: customNotes,
                 use_feishu: useFeishu,
                 file_ids: uploadedFileIDs,
+                assignees: selectedAssignees,
             }),
         });
 
@@ -290,6 +356,8 @@ async function handleSubmit(event) {
         form.querySelector('input[name="depth"][value="standard"]').checked = true;
         uploadedFileIDs = [];
         document.getElementById('file-list').innerHTML = '';
+        selectedAssignees = [];
+        renderAssigneeTags();
     } catch (err) {
         toast('创建失败: ' + err.message, 'error');
     } finally {
@@ -448,6 +516,7 @@ function renderReportList(reports) {
                     <span class="badge-depth">${reportTypeLabel(r.report_type)}</span>
                         <span class="badge-depth">${depthLabel(r.depth)}</span>
                         ${r.file_count > 0 ? '<span>&#128206; ' + r.file_count + ' 份材料</span>' : ''}
+                        ${r.assignees && r.assignees.length > 0 ? '<span>&#128100; ' + r.assignees.map(a => escapeHtml(a.name)).join(', ') + '</span>' : ''}
                     <span>${formatTime(r.created_at)}</span>
                 </div>
             </div>
@@ -494,15 +563,23 @@ async function viewReport(id) {
             return;
         }
 
-        // Meta info
+        // Meta info with editable title
+        const assigneeHtml = (report.config.assignees && report.config.assignees.length > 0)
+            ? '<span>负责人: ' + report.config.assignees.map(a => escapeHtml(a.name)).join(', ') + '</span>'
+            : '';
+
         document.getElementById('detail-meta').innerHTML = `
-            <h2>${escapeHtml(report.title || report.config.topic)}</h2>
+            <div class="detail-title-wrap">
+                <h2 id="detail-title-text">${escapeHtml(report.title || report.config.topic)}</h2>
+                <button class="detail-title-edit" onclick="renameReport('${id}')" title="修改标题">&#9998;</button>
+            </div>
             <div class="detail-meta-info">
+                <span class="badge-depth">${reportTypeLabel(report.config.report_type)}</span>
                 <span>${escapeHtml(report.config.topic)}</span>
                 ${report.config.direction ? '<span>' + escapeHtml(report.config.direction) + '</span>' : ''}
-                <span class="badge-depth">${depthLabel(report.config.depth)}</span>
                 <span>${formatTime(report.created_at)}</span>
                 ${report.completed_at ? '<span>耗时 ' + calcDuration(report.created_at, report.completed_at) + '</span>' : ''}
+                ${assigneeHtml}
             </div>
         `;
 
@@ -557,6 +634,23 @@ function scrollToSection(event, id) {
 }
 
 // ===== Actions =====
+async function renameReport(id) {
+    const current = document.getElementById('detail-title-text')?.textContent || '';
+    const newTitle = prompt('修改报告标题：', current);
+    if (newTitle === null || newTitle.trim() === '' || newTitle === current) return;
+
+    try {
+        await apiCall('/reports/' + id, {
+            method: 'PATCH',
+            body: JSON.stringify({ title: newTitle.trim() }),
+        });
+        document.getElementById('detail-title-text').textContent = newTitle.trim();
+        toast('标题已更新', 'success');
+    } catch (err) {
+        toast('修改失败: ' + err.message, 'error');
+    }
+}
+
 async function deleteReport(id) {
     if (!confirm('确定要删除这份报告吗？此操作不可撤销。')) return;
     try {

@@ -13,6 +13,15 @@ func NewRouter(handler *Handler) http.Handler {
 	mux.HandleFunc("/health", handler.Health)
 	mux.HandleFunc("/api/health", handler.Health)
 
+	// Feishu contacts search
+	mux.HandleFunc("/api/contacts", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			handler.SearchContacts(w, r)
+		} else {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
 	// File upload
 	mux.HandleFunc("/api/uploads", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodPost {
@@ -44,6 +53,8 @@ func NewRouter(handler *Handler) http.Handler {
 		switch r.Method {
 		case http.MethodGet:
 			handler.GetReport(w, r)
+		case http.MethodPatch:
+			handler.UpdateReport(w, r)
 		case http.MethodDelete:
 			handler.DeleteReport(w, r)
 		default:

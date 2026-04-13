@@ -267,6 +267,94 @@ type WikiNode struct {
 	Title     string `json:"title"`
 }
 
+// -- Contacts / Org Search --
+
+// Contact represents a person in the Feishu organization.
+type Contact struct {
+	ID     string `json:"id"`
+	Name   string `json:"name"`
+	Avatar string `json:"avatar,omitempty"`
+}
+
+// SearchContacts searches for users in the Feishu organization.
+func (c *Client) SearchContacts(ctx context.Context, query string) ([]Contact, error) {
+	if !c.enabled {
+		return nil, fmt.Errorf("feishu: lark-cli not available")
+	}
+
+	// Use lark-cli contact search
+	out, err := c.run(ctx, "api", "POST",
+		"/open-apis/search/v1/user",
+		"--data", fmt.Sprintf(`{"query":"%s","page_size":10}`, escapeJSON(query)),
+		"--params", `{"user_id_type":"open_id"}`,
+	)
+	if err != nil {
+		// Fallback: try the contact search shortcut
+		out, err = c.run(ctx, "api", "GET",
+			fmt.Sprintf("/open-apis/contact/v3/users?user_id_type=open_id&page_size=10"),
+		)
+		if err != nil {
+			return nil, fmt.Errorf("feishu: contact search failed: %w", err)
+		}
+	}
+
+	return parseContacts(out)
+}
+
+func parseContacts(data []byte) ([]Contact, error) {
+	cleaned := extractJSON(data)
+
+	// Try search API response format
+	var searchResp struct {
+		Data struct {
+			Users []struct {
+				OpenID string `json:"open_id"`
+				Name   string `json:"name"`
+				Avatar struct {
+					URL string `json:"avatar_72"`
+				} `json:"avatar"`
+			} `json:"users"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(cleaned, &searchResp); err == nil && len(searchResp.Data.Users) > 0 {
+		contacts := make([]Contact, 0, len(searchResp.Data.Users))
+		for _, u := range searchResp.Data.Users {
+			contacts = append(contacts, Contact{
+				ID:     u.OpenID,
+				Name:   u.Name,
+				Avatar: u.Avatar.URL,
+			})
+		}
+		return contacts, nil
+	}
+
+	// Try contact list response format
+	var listResp struct {
+		Data struct {
+			Items []struct {
+				OpenID string `json:"open_id"`
+				Name   string `json:"name"`
+				Avatar struct {
+					URL string `json:"avatar_72"`
+				} `json:"avatar"`
+			} `json:"items"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(cleaned, &listResp); err == nil && len(listResp.Data.Items) > 0 {
+		contacts := make([]Contact, 0, len(listResp.Data.Items))
+		for _, u := range listResp.Data.Items {
+			contacts = append(contacts, Contact{
+				ID:     u.OpenID,
+				Name:   u.Name,
+				Avatar: u.Avatar.URL,
+			})
+		}
+		return contacts, nil
+	}
+
+	return []Contact{}, nil
+}
+
 // -- High-level: Gather Reference Materials --
 
 // ReferenceMaterial represents a piece of reference content from Feishu.

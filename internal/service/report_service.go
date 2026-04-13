@@ -80,6 +80,11 @@ func (s *ReportService) SearchReports(query string) ([]*model.Report, error) {
 	return s.store.List()
 }
 
+// UpdateReport updates a report in the store.
+func (s *ReportService) UpdateReport(report *model.Report) error {
+	return s.store.Update(report)
+}
+
 // DeleteReport deletes a report by ID.
 func (s *ReportService) DeleteReport(id string) error {
 	return s.store.Delete(id)

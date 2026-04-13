@@ -54,7 +54,7 @@ func main() {
 	reportService := service.NewReportService(sqliteStore, generator, feishuClient)
 
 	// Initialize API handler and router
-	handler := api.NewHandler(reportService)
+	handler := api.NewHandler(reportService, feishuClient)
 	router := api.NewRouter(handler)
 
 	httpHandler := api.Chain(

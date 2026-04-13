@@ -7,18 +7,42 @@ import (
 	"strings"
 	"time"
 
+	"github.com/zinsserzhang/gobivc/internal/feishu"
 	"github.com/zinsserzhang/gobivc/internal/model"
 	"github.com/zinsserzhang/gobivc/internal/service"
 )
 
 // Handler holds HTTP handler methods for the report API.
 type Handler struct {
-	svc *service.ReportService
+	svc    *service.ReportService
+	feishu *feishu.Client
 }
 
 // NewHandler creates a new Handler.
-func NewHandler(svc *service.ReportService) *Handler {
-	return &Handler{svc: svc}
+func NewHandler(svc *service.ReportService, feishuClient *feishu.Client) *Handler {
+	return &Handler{svc: svc, feishu: feishuClient}
+}
+
+// SearchContacts handles GET /api/contacts?q=keyword
+func (h *Handler) SearchContacts(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query().Get("q")
+	if query == "" {
+		jsonResponse(w, http.StatusOK, []model.Assignee{})
+		return
+	}
+
+	if h.feishu == nil || !h.feishu.IsConfigured() {
+		errorResponse(w, http.StatusServiceUnavailable, "飞书未连接，无法搜索联系人")
+		return
+	}
+
+	contacts, err := h.feishu.SearchContacts(r.Context(), query)
+	if err != nil {
+		errorResponse(w, http.StatusInternalServerError, "搜索联系人失败: "+err.Error())
+		return
+	}
+
+	jsonResponse(w, http.StatusOK, contacts)
 }
 
 // jsonResponse writes a JSON response with the given status code.
@@ -65,6 +89,7 @@ func (h *Handler) CreateReport(w http.ResponseWriter, r *http.Request) {
 		Depth:       req.Depth,
 		CustomNotes: req.CustomNotes,
 		UseFeishu:   req.UseFeishu,
+		Assignees:   req.Assignees,
 	}
 
 	// Attach uploaded files
@@ -125,6 +150,38 @@ func (h *Handler) ListReports(w http.ResponseWriter, r *http.Request) {
 	}
 
 	jsonResponse(w, http.StatusOK, items)
+}
+
+// UpdateReport handles PATCH /api/reports/{id} (rename title, etc.)
+func (h *Handler) UpdateReport(w http.ResponseWriter, r *http.Request) {
+	id := extractID(r.URL.Path, "/api/reports/")
+	if id == "" {
+		errorResponse(w, http.StatusBadRequest, "report ID is required")
+		return
+	}
+
+	var req model.UpdateReportRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		errorResponse(w, http.StatusBadRequest, "invalid JSON body")
+		return
+	}
+
+	report, err := h.svc.GetReport(id)
+	if err != nil {
+		errorResponse(w, http.StatusNotFound, "report not found")
+		return
+	}
+
+	if req.Title != "" {
+		report.Title = req.Title
+	}
+
+	if err := h.svc.UpdateReport(report); err != nil {
+		errorResponse(w, http.StatusInternalServerError, "failed to update report")
+		return
+	}
+
+	jsonResponse(w, http.StatusOK, report)
 }
 
 // DeleteReport handles DELETE /api/reports/{id}

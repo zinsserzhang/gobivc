@@ -129,6 +129,18 @@
                         </div>
                     </div>
 
+                    <!-- Assignee selector (Feishu contacts) -->
+                    <div class="form-group" id="assignee-group" style="display:none">
+                        <label>负责人</label>
+                        <div class="assignee-input-wrap">
+                            <input type="text" id="assignee-search" autocomplete="off"
+                                   placeholder="搜索飞书组织成员..." oninput="debounceContactSearch()">
+                            <div class="assignee-dropdown" id="assignee-dropdown"></div>
+                        </div>
+                        <div class="assignee-tags" id="assignee-tags"></div>
+                        <span class="form-hint">可选，从飞书组织架构中选择报告负责人</span>
+                    </div>
+
                     <!-- File Upload -->
                     <div class="form-group" id="file-upload-group" style="display:none">
                         <label>上传项目材料</label>
