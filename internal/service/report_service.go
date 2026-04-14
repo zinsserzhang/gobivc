@@ -176,7 +176,28 @@ func (s *ReportService) generateReport(id string) {
 		}
 	}
 
-	// Fetch Qveris comps data if enabled
+	// Comps standalone module: discover peers + fetch market data, inject into prompt
+	if report.Config.ReportType == model.TypeComps {
+		// Step 1: AI discovers peer companies from BP
+		s.broadcast(id, "\n> 正在分析项目赛道并匹配二级市场可比公司...\n\n")
+		discovery, derr := s.discoverPeers(ctx, report.Config)
+		if derr != nil {
+			log.Printf("WARNING: peer discovery failed: %v", derr)
+			report.Config.CustomNotes += "\n\n注意：自动匹配可比公司失败，请 AI 基于已知行业知识推荐可比公司。\n"
+		} else {
+			// Step 2: Fetch Qveris market data for all discovered peers
+			marketData, merr := s.fetchAllCompsData(ctx, discovery)
+			if merr != nil {
+				log.Printf("WARNING: qveris data fetch failed: %v", merr)
+			}
+			// Inject discovered peers + market data into the final prompt
+			report.Config.CustomNotes += "\n\n===== 系统已自动匹配的可比公司数据 =====\n\n" + formatCompsContext(discovery, marketData)
+			log.Printf("INFO: injected comps context: %d A, %d HK, %d US",
+				len(discovery.APeers), len(discovery.HKPeers), len(discovery.USPeers))
+		}
+	}
+
+	// Fetch Qveris comps data if enabled (legacy financial analysis mode)
 	var compsTable string
 	if report.Config.ReportType == model.TypeFinancial &&
 		report.Config.FinancialInfo != nil &&
@@ -241,6 +262,8 @@ func buildTitle(config model.ReportConfig) string {
 		typeName = "立项报告"
 	case model.TypeFinancial:
 		typeName = "财务分析"
+	case model.TypeComps:
+		typeName = "二级市场Comps分析"
 	}
 	return config.Topic + " - " + typeName
 }

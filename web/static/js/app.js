@@ -83,6 +83,7 @@ function openCreate(type) {
         predd:     { title: 'Pre-DD 尽调', desc: '基于项目材料生成尽调清单与核心问题关注', topicLabel: '项目名称', topicPh: '例如：XX科技 A轮融资项目...', dirLabel: '侧重方向', dirPh: '例如：重点关注财务真实性和合规风险...', dirHint: '可选，指定尽调重点关注领域', showFiles: true, showSuggestions: false },
         memo:      { title: '立项报告', desc: '基于项目材料生成投委会立项报告 / 投资备忘录', topicLabel: '项目名称', topicPh: '例如：XX科技 A轮融资项目...', dirLabel: '侧重方向', dirPh: '例如：重点分析商业模式和财务数据...', dirHint: '可选，指定报告侧重的分析方向', showFiles: true, showSuggestions: false },
         financial: { title: '财务分析', desc: '上传财务报表，AI 将分析财务指标并可视化呈现', topicLabel: '公司名称', topicPh: '例如：XX科技有限公司...', dirLabel: '分析侧重', dirPh: '例如：重点分析盈利能力和现金流...', dirHint: '可选，指定财务分析的侧重方向', showFiles: true, showSuggestions: false },
+        comps:     { title: '二级市场 Comps 分析', desc: '上传BP，系统自动匹配A股/港股/美股同赛道上市公司，分别分析 Multiples', topicLabel: '项目名称', topicPh: '例如：XX科技 A轮融资项目...', dirLabel: '侧重方向', dirPh: '例如：重点关注成长性估值倍数、PEG对比...', dirHint: '可选，指定分析的侧重方向', showFiles: true, showSuggestions: false },
         industry:  { title: '行业研究报告', desc: '配置研究参数，AI 将为您生成专业的行业研究报告', topicLabel: '研究主题', topicPh: '输入行业或细分领域...', dirLabel: '研究方向', dirPh: '例如：市场规模与增长趋势、竞争格局分析...', dirHint: '可选，指定报告的重点分析方向', showFiles: false, showSuggestions: true },
     };
 
@@ -98,7 +99,7 @@ function openCreate(type) {
     document.getElementById('file-upload-group').style.display = c.showFiles ? 'block' : 'none';
 
     // Show/hide structured field groups
-    document.getElementById('fields-project').style.display = (type === 'predd' || type === 'memo') ? 'block' : 'none';
+    document.getElementById('fields-project').style.display = (type === 'predd' || type === 'memo' || type === 'comps') ? 'block' : 'none';
     document.getElementById('fields-memo').style.display = type === 'memo' ? 'block' : 'none';
     document.getElementById('fields-ddfocus').style.display = type === 'predd' ? 'block' : 'none';
     document.getElementById('fields-financial').style.display = type === 'financial' ? 'block' : 'none';
@@ -345,7 +346,7 @@ async function handleSubmit(event) {
             assignees: selectedAssignees,
         };
 
-        if (reportType === 'predd' || reportType === 'memo') {
+        if (reportType === 'predd' || reportType === 'memo' || reportType === 'comps') {
             payload.project_info = {
                 company_name: val('pi-company'),
                 industry: val('pi-industry'),
@@ -881,7 +882,7 @@ function statusLabel(s) {
 }
 
 function reportTypeLabel(t) {
-    return { predd: 'Pre-DD 尽调', memo: '立项报告', financial: '财务分析', industry: '行业研究' }[t] || t || '行业研究';
+    return { predd: 'Pre-DD 尽调', memo: '立项报告', financial: '财务分析', comps: '二级 Comps', industry: '行业研究' }[t] || t || '行业研究';
 }
 
 function depthLabel(d) {

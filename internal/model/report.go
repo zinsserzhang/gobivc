@@ -9,6 +9,7 @@ const (
 	TypePreDD          ReportType = "predd"
 	TypeInvestmentMemo ReportType = "memo"
 	TypeFinancial      ReportType = "financial"
+	TypeComps          ReportType = "comps"     // 二级市场 Comps 分析
 	TypeIndustryReport ReportType = "industry"
 )
 
@@ -146,7 +147,7 @@ func (r *CreateReportRequest) Validate() string {
 		return "topic is required"
 	}
 	switch r.ReportType {
-	case TypePreDD, TypeInvestmentMemo, TypeFinancial, TypeIndustryReport:
+	case TypePreDD, TypeInvestmentMemo, TypeFinancial, TypeComps, TypeIndustryReport:
 	case "":
 		r.ReportType = TypeIndustryReport
 	default:

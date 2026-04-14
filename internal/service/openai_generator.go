@@ -125,6 +125,63 @@ func (g *OpenAIGenerator) Generate(ctx context.Context, config model.ReportConfi
 	return content, nil
 }
 
+// GenerateRaw performs a non-streaming AI call with custom system+user prompts.
+func (g *OpenAIGenerator) GenerateRaw(ctx context.Context, systemPrompt, userPrompt string, maxTokens int) (string, error) {
+	if maxTokens <= 0 {
+		maxTokens = 4096
+	}
+
+	messages := []openaiMessage{
+		{Role: "system", Content: systemPrompt},
+		{Role: "user", Content: userPrompt},
+	}
+
+	reqBody := openaiRequest{
+		Model:       g.Model,
+		Messages:    messages,
+		MaxTokens:   maxTokens,
+		Temperature: 0.3, // low temp for structured output
+		TopP:        0.9,
+		Stream:      false,
+	}
+
+	bodyBytes, _ := json.Marshal(reqBody)
+	req, err := http.NewRequestWithContext(ctx, "POST", g.BaseURL+"/chat/completions", bytes.NewReader(bodyBytes))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+g.APIKey)
+
+	resp, err := g.Client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("API returned %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	var result openaiResponse
+	if err := json.Unmarshal(respBody, &result); err != nil {
+		return "", err
+	}
+	if result.Error != nil {
+		return "", fmt.Errorf("API error: %s", result.Error.Message)
+	}
+	if len(result.Choices) == 0 {
+		return "", fmt.Errorf("no choices in response")
+	}
+
+	return stripThinkingBlocks(result.Choices[0].Message.Content), nil
+}
+
 // stripThinkingBlocks removes <think>...</think> blocks from content.
 func stripThinkingBlocks(s string) string {
 	for {
