@@ -23,7 +23,7 @@ type Client struct {
 }
 
 type cachedTool struct {
-	toolID   string
+	tool     searchTool
 	searchID string
 	expires  time.Time
 }
@@ -62,12 +62,22 @@ func (r *searchResponse) getTools() []searchTool {
 }
 
 type searchTool struct {
-	ToolID      string          `json:"tool_id"`
-	Name        string          `json:"name"`
-	Description string          `json:"description"`
-	Parameters  json.RawMessage `json:"parameters"`
-	SuccessRate float64         `json:"success_rate"`
-	CreditCost  int             `json:"credit_cost"`
+	ToolID      string      `json:"tool_id"`
+	Name        string      `json:"name"`
+	Description string      `json:"description"`
+	Params      []toolParam `json:"params"`
+	SuccessRate float64     `json:"success_rate"`
+	CreditCost  int         `json:"credit_cost"`
+}
+
+// toolParam describes one parameter of a tool.
+type toolParam struct {
+	Name        string `json:"name"`
+	Type        string `json:"type"` // string, integer, number, boolean, array, object
+	Required    bool   `json:"required"`
+	Description any    `json:"description"`
+	Enum        []any  `json:"enum,omitempty"`
+	Default     any    `json:"default,omitempty"`
 }
 
 // SearchTools finds available tools matching a query.
@@ -150,10 +160,10 @@ type CompanyMetrics struct {
 }
 
 // getFinancialTool searches for a suitable financial data tool, caches the result.
-func (c *Client) getFinancialTool(ctx context.Context, market string) (toolID, searchID string, err error) {
+func (c *Client) getFinancialTool(ctx context.Context, market string) (*searchTool, string, error) {
 	cacheKey := "financial-" + market
 	if cached, ok := c.toolCache[cacheKey]; ok && time.Now().Before(cached.expires) {
-		return cached.toolID, cached.searchID, nil
+		return &cached.tool, cached.searchID, nil
 	}
 
 	// Market-specific search queries
@@ -190,20 +200,24 @@ func (c *Client) getFinancialTool(ctx context.Context, market string) (toolID, s
 			continue
 		}
 
-		// Pick the first tool (already ranked by relevance)
 		tool := tools[0]
-		log.Printf("INFO: qveris selected tool: %s (%s) for market %s",
-			tool.Name, tool.ToolID, market)
+		log.Printf("INFO: qveris selected tool: %s (%s) for market %s, %d params",
+			tool.Name, tool.ToolID, market, len(tool.Params))
+		for _, p := range tool.Params {
+			if p.Required {
+				log.Printf("INFO:   required param: %s (%s)", p.Name, p.Type)
+			}
+		}
 
 		c.toolCache[cacheKey] = cachedTool{
-			toolID:   tool.ToolID,
+			tool:     tool,
 			searchID: searchResp.SearchID,
 			expires:  time.Now().Add(10 * time.Minute),
 		}
-		return tool.ToolID, searchResp.SearchID, nil
+		return &tool, searchResp.SearchID, nil
 	}
 
-	return "", "", fmt.Errorf("qveris: no financial tool found for market %s", market)
+	return nil, "", fmt.Errorf("qveris: no financial tool found for market %s", market)
 }
 
 // FetchCompsData fetches financial metrics for a list of company symbols.
@@ -222,7 +236,7 @@ func (c *Client) FetchCompsDataByMarket(ctx context.Context, symbols []string, m
 
 	log.Printf("INFO: qveris: fetching %s comps data for %d symbols", market, len(symbols))
 
-	toolID, searchID, err := c.getFinancialTool(ctx, market)
+	tool, searchID, err := c.getFinancialTool(ctx, market)
 	if err != nil {
 		return nil, err
 	}
@@ -234,7 +248,7 @@ func (c *Client) FetchCompsDataByMarket(ctx context.Context, symbols []string, m
 			continue
 		}
 
-		metrics, err := c.fetchSingleCompany(ctx, toolID, searchID, symbol)
+		metrics, err := c.fetchSingleCompany(ctx, tool, searchID, symbol)
 		if err != nil {
 			log.Printf("WARNING: qveris fetch '%s' failed: %v", symbol, err)
 			results = append(results, CompanyMetrics{
@@ -252,65 +266,6 @@ func (c *Client) FetchCompsDataByMarket(ctx context.Context, symbols []string, m
 	return results, nil
 }
 
-// buildParamsForTool returns the correct parameter structure based on the tool ID.
-// Different Qveris tools have different parameter requirements.
-func buildParamsForTool(toolID, symbol string) map[string]any {
-	lid := strings.ToLower(toolID)
-
-	// Hang Seng Polysource tools (A股/港股) need "stockobject" / "stockObject"
-	if strings.Contains(lid, "hangseng_polysource") || strings.Contains(lid, "polysource") {
-		// The stockobject param is typically an object like {"code":"600519","market":"SH"}
-		// but some variants accept a string
-		code, market := parseStockCode(symbol)
-		stockObj := map[string]any{"code": code, "market": market}
-
-		return map[string]any{
-			"stockobject": stockObj,
-			"stockObject": stockObj, // some tools use camelCase
-			"symbol":      symbol,
-		}
-	}
-
-	// Finnhub tools need "symbol" + "metric"
-	if strings.Contains(lid, "finnhub") {
-		return map[string]any{
-			"symbol": symbol,
-			"metric": "all", // required param, means "all metrics"
-		}
-	}
-
-	// Alpha Vantage tools need "symbol" + "function"
-	if strings.Contains(lid, "alphavantage") {
-		return map[string]any{
-			"symbol":   symbol,
-			"function": "OVERVIEW",
-		}
-	}
-
-	// Financial Modeling Prep tools
-	if strings.Contains(lid, "financialmodelingprep") || strings.Contains(lid, "fmp") {
-		return map[string]any{
-			"symbol": symbol,
-		}
-	}
-
-	// Gildata tools
-	if strings.Contains(lid, "gildata") {
-		return map[string]any{
-			"query":  symbol,
-			"symbol": symbol,
-		}
-	}
-
-	// Default: try all common param names
-	return map[string]any{
-		"symbol": symbol,
-		"ticker": symbol,
-		"code":   symbol,
-		"stock":  symbol,
-	}
-}
-
 // parseStockCode splits "600519.SH" into ("600519", "SH") or "09988.HK" into ("09988", "HK")
 func parseStockCode(symbol string) (code, market string) {
 	if i := strings.Index(symbol, "."); i > 0 {
@@ -319,13 +274,82 @@ func parseStockCode(symbol string) (code, market string) {
 	return symbol, ""
 }
 
-func (c *Client) fetchSingleCompany(ctx context.Context, toolID, searchID, symbol string) (*CompanyMetrics, error) {
+// buildParamsFromSchema builds parameters using the tool's declared schema.
+// Only includes params that the tool actually declares, with correct types.
+func buildParamsFromSchema(tool *searchTool, symbol string) map[string]any {
+	params := make(map[string]any)
+	code, market := parseStockCode(symbol)
+
+	for _, p := range tool.Params {
+		nameL := strings.ToLower(p.Name)
+
+		// Compound stock object params (Hang Seng pattern)
+		if nameL == "stockobject" {
+			if market != "" {
+				params[p.Name] = map[string]any{"code": code, "market": market}
+			} else {
+				params[p.Name] = map[string]any{"code": code}
+			}
+			continue
+		}
+
+		// Symbol-like params
+		if contains(nameL, []string{"symbol", "ticker", "code", "stock", "secucode", "instrument"}) {
+			params[p.Name] = symbol
+			continue
+		}
+
+		// Market/exchange params
+		if contains(nameL, []string{"market", "exchange"}) {
+			params[p.Name] = market
+			continue
+		}
+
+		// Known required params with common defaults
+		if p.Required {
+			switch nameL {
+			case "metric":
+				params[p.Name] = "all"
+			case "function":
+				params[p.Name] = "OVERVIEW"
+			case "query":
+				params[p.Name] = symbol
+			case "pageno":
+				params[p.Name] = 1
+			case "pagesize":
+				params[p.Name] = 10
+			case "period":
+				params[p.Name] = "annual"
+			default:
+				// If it has an enum, pick the first option
+				if len(p.Enum) > 0 {
+					params[p.Name] = p.Enum[0]
+				} else if p.Default != nil {
+					params[p.Name] = p.Default
+				}
+			}
+		}
+	}
+
+	return params
+}
+
+func contains(s string, subs []string) bool {
+	for _, sub := range subs {
+		if strings.Contains(s, sub) {
+			return true
+		}
+	}
+	return false
+}
+
+func (c *Client) fetchSingleCompany(ctx context.Context, tool *searchTool, searchID, symbol string) (*CompanyMetrics, error) {
 	cleanSymbol := strings.TrimSpace(symbol)
+	params := buildParamsFromSchema(tool, cleanSymbol)
 
-	// Build parameters based on the tool. Different tools need different params.
-	params := buildParamsForTool(toolID, cleanSymbol)
+	log.Printf("INFO: qveris execute %s for '%s' with params: %v", tool.ToolID, cleanSymbol, params)
 
-	resp, err := c.ExecuteTool(ctx, toolID, searchID, params)
+	resp, err := c.ExecuteTool(ctx, tool.ToolID, searchID, params)
 	if err != nil {
 		return nil, err
 	}
