@@ -89,7 +89,12 @@ function openCreate(type) {
 
     const c = cfg[type] || cfg.industry;
     document.getElementById('report-type').value = type;
-    document.getElementById('create-header').innerHTML = `<h2>${c.title}</h2><p>${c.desc}</p>`;
+
+    let descHtml = c.desc;
+    if (type === 'comps' && !systemStatus.qveris_enabled) {
+        descHtml = c.desc + '<br><span style="color:var(--danger);font-size:12px">⚠️ 当前 Qveris.ai 未配置，该模块无法使用。请联系管理员在服务器 .env 中设置 QVERIS_API_KEY 后重启服务。</span>';
+    }
+    document.getElementById('create-header').innerHTML = `<h2>${c.title}</h2><p>${descHtml}</p>`;
     document.getElementById('topic-label').innerHTML = c.topicLabel + ' <span class="required">*</span>';
     document.getElementById('topic').placeholder = c.topicPh;
     document.getElementById('direction-label').textContent = c.dirLabel;
@@ -137,19 +142,30 @@ async function apiCall(url, options = {}) {
     return data;
 }
 
-// ===== Check Feishu Status =====
-async function checkFeishuStatus() {
+// ===== Check System Status =====
+let systemStatus = { feishu_enabled: false, qveris_enabled: false };
+
+async function checkStatus() {
     try {
         const resp = await fetch('/health');
         const data = await resp.json();
+        systemStatus = data;
         if (data.feishu_enabled) {
             document.getElementById('feishu-group').style.display = 'block';
             document.getElementById('use-feishu').checked = true;
             document.getElementById('assignee-group').style.display = 'block';
         }
+        // Mark Comps button if Qveris is disabled
+        if (!data.qveris_enabled) {
+            const compsBtn = document.querySelector('.nav-btn[data-view="create-comps"]');
+            if (compsBtn) {
+                compsBtn.setAttribute('title', '需要配置 Qveris.ai API Key');
+                compsBtn.style.opacity = '0.7';
+            }
+        }
     } catch (e) { /* ignore */ }
 }
-checkFeishuStatus();
+checkStatus();
 
 // ===== Assignees (Feishu Contacts) =====
 let selectedAssignees = [];

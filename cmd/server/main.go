@@ -53,6 +53,12 @@ func main() {
 
 	// Initialize Qveris client (financial data)
 	qverisClient := qveris.NewClient(cfg.QverisAPIKey)
+	api.QverisEnabled = qverisClient.IsConfigured()
+	if qverisClient.IsConfigured() {
+		log.Printf("Qveris.ai integration: enabled")
+	} else {
+		log.Printf("Qveris.ai integration: NOT configured (Comps 分析将不可用)")
+	}
 
 	// Initialize service layer
 	reportService := service.NewReportService(sqliteStore, generator, feishuClient, qverisClient)

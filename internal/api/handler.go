@@ -60,12 +60,16 @@ func errorResponse(w http.ResponseWriter, status int, message string) {
 // FeishuEnabled tracks whether Feishu integration is active.
 var FeishuEnabled bool
 
+// QverisEnabled tracks whether Qveris.ai integration is active.
+var QverisEnabled bool
+
 // Health handles GET /health and /api/health
 func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
 	jsonResponse(w, http.StatusOK, map[string]any{
-		"status":        "ok",
-		"time":          time.Now().UTC().Format(time.RFC3339),
+		"status":         "ok",
+		"time":           time.Now().UTC().Format(time.RFC3339),
 		"feishu_enabled": FeishuEnabled,
+		"qveris_enabled": QverisEnabled,
 	})
 }
 

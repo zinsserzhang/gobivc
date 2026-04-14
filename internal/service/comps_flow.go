@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"time"
 
 	"github.com/zinsserzhang/gobivc/internal/model"
 	"github.com/zinsserzhang/gobivc/internal/qveris"
@@ -147,23 +148,34 @@ func (s *ReportService) fetchAllCompsData(ctx context.Context, discovery *PeerDi
 		return nil, fmt.Errorf("Qveris 未配置，跳过实时市场数据")
 	}
 
-	allSymbols := make(map[string][]string)
-	allSymbols["A股"] = extractSymbols(discovery.APeers)
-	allSymbols["港股"] = extractSymbols(discovery.HKPeers)
-	allSymbols["美股"] = extractSymbols(discovery.USPeers)
-
 	result := make(map[string][]qveris.CompanyMetrics)
-	for market, symbols := range allSymbols {
-		if len(symbols) == 0 {
-			continue
+
+	if syms := extractSymbols(discovery.APeers); len(syms) > 0 {
+		if data, err := s.qveris.FetchCompsDataByMarket(ctx, syms, "A股"); err == nil {
+			result["A股"] = data
+		} else {
+			log.Printf("WARNING: qveris A股 fetch failed: %v", err)
 		}
-		metrics, err := s.qveris.FetchCompsData(ctx, symbols)
-		if err != nil {
-			log.Printf("WARNING: qveris %s fetch failed: %v", market, err)
-			continue
-		}
-		result[market] = metrics
 	}
+	if syms := extractSymbols(discovery.HKPeers); len(syms) > 0 {
+		if data, err := s.qveris.FetchCompsDataByMarket(ctx, syms, "港股"); err == nil {
+			result["港股"] = data
+		} else {
+			log.Printf("WARNING: qveris 港股 fetch failed: %v", err)
+		}
+	}
+	if syms := extractSymbols(discovery.USPeers); len(syms) > 0 {
+		if data, err := s.qveris.FetchCompsDataByMarket(ctx, syms, "美股"); err == nil {
+			result["美股"] = data
+		} else {
+			log.Printf("WARNING: qveris 美股 fetch failed: %v", err)
+		}
+	}
+
+	if len(result) == 0 {
+		return nil, fmt.Errorf("未能从 Qveris 获取任何市场数据")
+	}
+
 	return result, nil
 }
 
@@ -178,6 +190,9 @@ func extractSymbols(peers []PeerSuggestion) []string {
 // formatCompsContext formats the discovered peers + market data for injection into the final AI prompt.
 func formatCompsContext(discovery *PeerDiscovery, marketData map[string][]qveris.CompanyMetrics) string {
 	var sb strings.Builder
+
+	sb.WriteString("⚠️ 以下是从 Qveris.ai 实时 API 拉取的最新二级市场数据。**报告中使用的所有估值数据必须引用以下表格，禁止使用模型训练时的旧数据。**\n\n")
+	sb.WriteString(fmt.Sprintf("数据拉取时间：%s\n\n", time.Now().Format("2006-01-02 15:04:05")))
 
 	sb.WriteString(fmt.Sprintf("## 赛道识别\n- 行业：%s\n- 细分赛道：%s\n\n", discovery.Industry, discovery.SubSector))
 
