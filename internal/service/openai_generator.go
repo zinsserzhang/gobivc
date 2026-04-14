@@ -115,8 +115,31 @@ func NewOpenAIGenerator(apiKey, modelName, baseURL string) *OpenAIGenerator {
 // -- OpenAI request/response types --
 
 type openaiMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+	Role       string         `json:"role"`
+	Content    string         `json:"content,omitempty"`
+	ToolCalls  []openaiToolCall `json:"tool_calls,omitempty"`
+	ToolCallID string         `json:"tool_call_id,omitempty"` // for role=tool
+	Name       string         `json:"name,omitempty"`
+}
+
+// openaiToolCall represents a function call from the model.
+type openaiToolCall struct {
+	ID       string `json:"id"`
+	Type     string `json:"type"` // "function"
+	Function struct {
+		Name      string `json:"name"`
+		Arguments string `json:"arguments"` // JSON-encoded string
+	} `json:"function"`
+}
+
+// openaiToolDef declares an available function/tool.
+type openaiToolDef struct {
+	Type     string `json:"type"` // "function"
+	Function struct {
+		Name        string         `json:"name"`
+		Description string         `json:"description"`
+		Parameters  map[string]any `json:"parameters"`
+	} `json:"function"`
 }
 
 type openaiRequest struct {
@@ -126,12 +149,17 @@ type openaiRequest struct {
 	Temperature float64         `json:"temperature"`
 	TopP        float64         `json:"top_p,omitempty"`
 	Stream      bool            `json:"stream,omitempty"`
+	Tools       []openaiToolDef `json:"tools,omitempty"`
+	ToolChoice  string          `json:"tool_choice,omitempty"` // "auto", "none", "required"
 }
 
 type openaiChoice struct {
-	Index   int `json:"index"`
-	Message struct {
-		Content string `json:"content"`
+	Index        int `json:"index"`
+	FinishReason string `json:"finish_reason"`
+	Message      struct {
+		Role      string           `json:"role"`
+		Content   string           `json:"content"`
+		ToolCalls []openaiToolCall `json:"tool_calls,omitempty"`
 	} `json:"message"`
 }
 
@@ -141,6 +169,123 @@ type openaiResponse struct {
 		Message string `json:"message"`
 		Type    string `json:"type"`
 	} `json:"error,omitempty"`
+}
+
+// ToolHandler executes a function/tool call and returns the result as a string.
+type ToolHandler func(ctx context.Context, name string, arguments string) (string, error)
+
+// ChatWithTools runs an agent loop with function calling.
+// Returns final assistant text after the model stops calling tools.
+// progress callback receives human-readable status messages.
+func (g *OpenAIGenerator) ChatWithTools(
+	ctx context.Context,
+	systemPrompt string,
+	userPrompt string,
+	tools []openaiToolDef,
+	handler ToolHandler,
+	maxIterations int,
+	progress func(string),
+) (string, error) {
+	if maxIterations <= 0 {
+		maxIterations = 10
+	}
+
+	messages := []openaiMessage{
+		{Role: "system", Content: systemPrompt},
+		{Role: "user", Content: userPrompt},
+	}
+
+	for iter := 0; iter < maxIterations; iter++ {
+		reqBody := openaiRequest{
+			Model:       g.Model,
+			Messages:    messages,
+			MaxTokens:   8192,
+			Temperature: 0.5,
+			TopP:        0.9,
+			Stream:      false,
+			Tools:       tools,
+			ToolChoice:  "auto",
+		}
+
+		bodyBytes, err := json.Marshal(reqBody)
+		if err != nil {
+			return "", fmt.Errorf("marshal request: %w", err)
+		}
+
+		req, err := http.NewRequestWithContext(ctx, "POST", g.BaseURL+"/chat/completions", bytes.NewReader(bodyBytes))
+		if err != nil {
+			return "", err
+		}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+g.APIKey)
+
+		resp, err := g.doRequestWithRetry(req, bodyBytes)
+		if err != nil {
+			return "", fmt.Errorf("API call failed (iter %d): %w", iter, err)
+		}
+
+		respBody, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			return "", err
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			return "", fmt.Errorf("API %d: %s", resp.StatusCode, string(respBody))
+		}
+
+		var result openaiResponse
+		if err := json.Unmarshal(respBody, &result); err != nil {
+			return "", fmt.Errorf("parse response: %w", err)
+		}
+		if result.Error != nil {
+			return "", fmt.Errorf("API error: %s", result.Error.Message)
+		}
+		if len(result.Choices) == 0 {
+			return "", fmt.Errorf("no choices returned")
+		}
+
+		choice := result.Choices[0]
+		assistantMsg := openaiMessage{
+			Role:      "assistant",
+			Content:   stripThinkingBlocks(choice.Message.Content),
+			ToolCalls: choice.Message.ToolCalls,
+		}
+		messages = append(messages, assistantMsg)
+
+		// If no tool calls, we're done
+		if len(choice.Message.ToolCalls) == 0 {
+			if progress != nil {
+				progress(fmt.Sprintf("AI 完成分析（共 %d 轮）", iter+1))
+			}
+			return assistantMsg.Content, nil
+		}
+
+		// Execute each tool call and append results
+		for _, tc := range choice.Message.ToolCalls {
+			if progress != nil {
+				progress(fmt.Sprintf("调用工具: %s", tc.Function.Name))
+			}
+
+			toolResult, err := handler(ctx, tc.Function.Name, tc.Function.Arguments)
+			if err != nil {
+				toolResult = fmt.Sprintf(`{"error": "%s"}`, err.Error())
+			}
+
+			messages = append(messages, openaiMessage{
+				Role:       "tool",
+				ToolCallID: tc.ID,
+				Name:       tc.Function.Name,
+				Content:    toolResult,
+			})
+		}
+
+		if choice.FinishReason == "stop" {
+			return assistantMsg.Content, nil
+		}
+	}
+
+	return "", fmt.Errorf("reached max iterations (%d)", maxIterations)
 }
 
 // Generate implements AIGenerator for non-streaming generation.

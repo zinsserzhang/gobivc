@@ -182,51 +182,44 @@ func (s *ReportService) generateReport(id string) {
 		}
 	}
 
-	// Comps standalone module: discover peers + fetch market data, inject into prompt
+	// Comps module: use function-calling agent to drive the workflow
 	if report.Config.ReportType == model.TypeComps {
 		if s.qveris == nil || !s.qveris.IsConfigured() {
 			report.Status = model.StatusFailed
-			report.ErrorMsg = "二级市场 Comps 分析需要配置 Qveris.ai API Key，请先在服务器 .env 中设置 QVERIS_API_KEY"
+			report.ErrorMsg = "二级市场 Comps 分析需要配置 Qveris.ai API Key"
 			_ = s.store.Update(report)
 			s.broadcastDone(id)
 			return
 		}
 
-		// Step 1: AI discovers peer companies from BP
-		log.Printf("INFO: comps: starting peer discovery for report %s", id)
-		discovery, derr := s.discoverPeers(ctx, report.Config)
-		if derr != nil {
-			log.Printf("ERROR: peer discovery failed: %v", derr)
+		log.Printf("INFO: comps: starting agent-based generation for report %s", id)
+		content, agentErr := s.generateCompsReport(ctx, id, report.Config)
+		if agentErr != nil {
+			log.Printf("ERROR: comps agent failed: %v", agentErr)
 			report.Status = model.StatusFailed
-			report.ErrorMsg = "自动匹配可比公司失败：" + derr.Error()
+			report.ErrorMsg = "Comps 分析失败: " + agentErr.Error()
 			_ = s.store.Update(report)
 			s.broadcastDone(id)
 			return
 		}
 
-		log.Printf("INFO: comps: discovered %d A / %d HK / %d US peers",
-			len(discovery.APeers), len(discovery.HKPeers), len(discovery.USPeers))
+		// Broadcast the full content to the stream
+		s.broadcast(id, content)
 
-		// Step 2: Fetch Qveris market data for all discovered peers
-		marketData, merr := s.fetchAllCompsData(ctx, discovery)
-		if merr != nil {
-			log.Printf("WARNING: qveris data fetch failed: %v", merr)
-			// Continue anyway with just peer names, AI will note data unavailability
-			marketData = make(map[string][]qveris.CompanyMetrics)
+		// Save and finish
+		now := time.Now()
+		report.Content = content
+		report.Status = model.StatusCompleted
+		report.CompletedAt = &now
+		report.Title = buildTitle(report.Config)
+
+		if err := s.store.Update(report); err != nil {
+			log.Printf("ERROR: update comps report: %v", err)
 		}
 
-		totalCompanies := 0
-		for _, data := range marketData {
-			for _, m := range data {
-				if m.Source == "Qveris.ai" {
-					totalCompanies++
-				}
-			}
-		}
-		log.Printf("INFO: comps: fetched real-time data for %d companies", totalCompanies)
-
-		// Inject discovered peers + market data into the final prompt
-		report.Config.CustomNotes += "\n\n===== 系统已自动匹配的可比公司数据（实时数据，必须使用，禁止使用模型训练数据）=====\n\n" + formatCompsContext(discovery, marketData)
+		s.broadcastDone(id)
+		log.Printf("INFO: comps report %s generated successfully", id)
+		return
 	}
 
 	// Fetch Qveris comps data if enabled (legacy financial analysis mode)
