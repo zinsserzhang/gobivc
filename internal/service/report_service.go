@@ -101,21 +101,27 @@ func (s *ReportService) Subscribe(reportID string) chan string {
 	return ch
 }
 
-// Unsubscribe removes a channel from streaming.
+// Unsubscribe removes a channel from streaming. Safe to call after broadcastDone.
 func (s *ReportService) Unsubscribe(reportID string, ch chan string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	subs := s.subscribers[reportID]
+	found := false
 	for i, sub := range subs {
 		if sub == ch {
 			s.subscribers[reportID] = append(subs[:i], subs[i+1:]...)
+			found = true
 			break
 		}
 	}
 	if len(s.subscribers[reportID]) == 0 {
 		delete(s.subscribers, reportID)
 	}
-	close(ch)
+	// Only close if we actually found+removed the channel (not already closed by broadcastDone)
+	if found {
+		defer func() { recover() }() // safety net
+		close(ch)
+	}
 }
 
 // broadcast sends a chunk to all subscribers of a report.

@@ -48,7 +48,17 @@ func (c *Client) IsConfigured() bool { return c.APIKey != "" }
 
 type searchResponse struct {
 	SearchID string       `json:"search_id"`
+	Total    int          `json:"total"`
 	Tools    []searchTool `json:"tools"`
+	Results  []searchTool `json:"results"` // Qveris actually uses "results"
+}
+
+// getTools returns the tool list, handling both schemas.
+func (r *searchResponse) getTools() []searchTool {
+	if len(r.Results) > 0 {
+		return r.Results
+	}
+	return r.Tools
 }
 
 type searchTool struct {
@@ -175,14 +185,15 @@ func (c *Client) getFinancialTool(ctx context.Context, market string) (toolID, s
 			log.Printf("WARNING: qveris search failed for '%s': %v", q, serr)
 			continue
 		}
-		if len(searchResp.Tools) == 0 {
+		tools := searchResp.getTools()
+		if len(tools) == 0 {
 			continue
 		}
 
 		// Pick the first tool (already ranked by relevance)
-		tool := searchResp.Tools[0]
-		log.Printf("INFO: qveris selected tool: %s (%s) for market %s, success_rate=%.2f",
-			tool.Name, tool.ToolID, market, tool.SuccessRate)
+		tool := tools[0]
+		log.Printf("INFO: qveris selected tool: %s (%s) for market %s",
+			tool.Name, tool.ToolID, market)
 
 		c.toolCache[cacheKey] = cachedTool{
 			toolID:   tool.ToolID,
