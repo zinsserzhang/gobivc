@@ -7,12 +7,90 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/zinsserzhang/gobivc/internal/model"
 )
+
+// streamRequestWithRetry executes a streaming request with retry on transient errors.
+func streamRequestWithRetry(client *http.Client, req *http.Request, body []byte) (*http.Response, error) {
+	maxRetries := 4
+	backoff := 2 * time.Second
+
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		if body != nil {
+			req.Body = io.NopCloser(bytes.NewReader(body))
+		}
+
+		resp, err := client.Do(req)
+		if err != nil {
+			if attempt == maxRetries {
+				return nil, err
+			}
+			log.Printf("WARNING: stream request failed (attempt %d/%d): %v, retrying in %v", attempt+1, maxRetries, err, backoff)
+			time.Sleep(backoff)
+			backoff *= 2
+			continue
+		}
+
+		if resp.StatusCode == 429 || resp.StatusCode == 529 || (resp.StatusCode >= 500 && resp.StatusCode < 600) {
+			if attempt == maxRetries {
+				return resp, nil
+			}
+			resp.Body.Close()
+			log.Printf("WARNING: stream API returned %d (attempt %d/%d), retrying in %v", resp.StatusCode, attempt+1, maxRetries, backoff)
+			time.Sleep(backoff)
+			backoff *= 2
+			continue
+		}
+
+		return resp, nil
+	}
+	return nil, fmt.Errorf("max retries exceeded")
+}
+
+// doRequestWithRetry executes an HTTP request with retry on transient errors.
+func (g *OpenAIGenerator) doRequestWithRetry(req *http.Request, body []byte) (*http.Response, error) {
+	maxRetries := 4
+	backoff := 2 * time.Second
+
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		// Clone request body for each retry
+		if body != nil {
+			req.Body = io.NopCloser(bytes.NewReader(body))
+		}
+
+		resp, err := g.Client.Do(req)
+		if err != nil {
+			if attempt == maxRetries {
+				return nil, err
+			}
+			log.Printf("WARNING: request failed (attempt %d/%d): %v, retrying in %v", attempt+1, maxRetries, err, backoff)
+			time.Sleep(backoff)
+			backoff *= 2
+			continue
+		}
+
+		// Retry on 429 (rate limit), 5xx (server errors), 529 (overloaded)
+		if resp.StatusCode == 429 || resp.StatusCode == 529 || (resp.StatusCode >= 500 && resp.StatusCode < 600) {
+			if attempt == maxRetries {
+				return resp, nil // return the final response for error handling
+			}
+			resp.Body.Close()
+			log.Printf("WARNING: API returned %d (attempt %d/%d), retrying in %v", resp.StatusCode, attempt+1, maxRetries, backoff)
+			time.Sleep(backoff)
+			backoff *= 2
+			continue
+		}
+
+		return resp, nil
+	}
+
+	return nil, fmt.Errorf("max retries exceeded")
+}
 
 // OpenAIGenerator uses OpenAI-compatible APIs (MiniMax, DeepSeek, etc.) to generate reports.
 type OpenAIGenerator struct {
@@ -92,7 +170,7 @@ func (g *OpenAIGenerator) Generate(ctx context.Context, config model.ReportConfi
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+g.APIKey)
 
-	resp, err := g.Client.Do(req)
+	resp, err := g.doRequestWithRetry(req, bodyBytes)
 	if err != nil {
 		return "", fmt.Errorf("API request failed: %w", err)
 	}
@@ -153,7 +231,7 @@ func (g *OpenAIGenerator) GenerateRaw(ctx context.Context, systemPrompt, userPro
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+g.APIKey)
 
-	resp, err := g.Client.Do(req)
+	resp, err := g.doRequestWithRetry(req, bodyBytes)
 	if err != nil {
 		return "", err
 	}
@@ -226,8 +304,9 @@ func (g *OpenAIGenerator) GenerateStream(ctx context.Context, config model.Repor
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+g.APIKey)
 
-	client := &http.Client{Timeout: 10 * time.Minute}
-	resp, err := client.Do(req)
+	// Use retry-enabled client for streaming (only retries the initial connection)
+	longTimeoutClient := &http.Client{Timeout: 15 * time.Minute}
+	resp, err := streamRequestWithRetry(longTimeoutClient, req, bodyBytes)
 	if err != nil {
 		return "", fmt.Errorf("API request failed: %w", err)
 	}
