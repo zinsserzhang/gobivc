@@ -80,11 +80,11 @@ function switchView(view) {
 // Open create view for a specific report type
 function openCreate(type) {
     const cfg = {
-        predd:     { title: 'Pre-DD 尽调', desc: '基于项目材料生成尽调清单与核心问题关注', topicLabel: '项目名称', topicPh: '例如：XX科技 A轮融资项目...', dirLabel: '侧重方向', dirPh: '例如：重点关注财务真实性和合规风险...', dirHint: '可选，指定尽调重点关注领域', showFiles: true, showSuggestions: false },
-        memo:      { title: '立项报告', desc: '基于项目材料生成投委会立项报告 / 投资备忘录', topicLabel: '项目名称', topicPh: '例如：XX科技 A轮融资项目...', dirLabel: '侧重方向', dirPh: '例如：重点分析商业模式和财务数据...', dirHint: '可选，指定报告侧重的分析方向', showFiles: true, showSuggestions: false },
-        financial: { title: '财务分析', desc: '上传财务报表，AI 将分析财务指标并可视化呈现', topicLabel: '公司名称', topicPh: '例如：XX科技有限公司...', dirLabel: '分析侧重', dirPh: '例如：重点分析盈利能力和现金流...', dirHint: '可选，指定财务分析的侧重方向', showFiles: true, showSuggestions: false },
-        comps:     { title: '二级市场 Comps 分析', desc: '上传BP，系统自动匹配A股/港股/美股同赛道上市公司，分别分析 Multiples', topicLabel: '项目名称', topicPh: '例如：XX科技 A轮融资项目...', dirLabel: '侧重方向', dirPh: '例如：重点关注成长性估值倍数、PEG对比...', dirHint: '可选，指定分析的侧重方向', showFiles: true, showSuggestions: false },
-        industry:  { title: '行业研究报告', desc: '配置研究参数，AI 将为您生成专业的行业研究报告', topicLabel: '研究主题', topicPh: '输入行业或细分领域...', dirLabel: '研究方向', dirPh: '例如：市场规模与增长趋势、竞争格局分析...', dirHint: '可选，指定报告的重点分析方向', showFiles: false, showSuggestions: true },
+        predd:     { title: 'Pre-DD 尽调', desc: '上传 BP，AI 自动分析生成尽调清单与核心问题关注', topicLabel: '项目名称', topicPh: '例如：XX科技', dirLabel: '关注方向（可选）', dirPh: '例如：重点关注技术壁垒...', dirHint: '可选，指定重点关注领域', showFiles: true, showSuggestions: false },
+        memo:      { title: '立项报告', desc: '基于项目材料与交易条款生成投委会立项报告', topicLabel: '项目名称', topicPh: '例如：XX科技 A轮融资项目', dirLabel: '报告侧重（可选）', dirPh: '例如：重点分析商业模式和退出路径', dirHint: '可选', showFiles: true, showSuggestions: false },
+        financial: { title: '财务分析', desc: '上传财务报表，AI 分析财务指标并可视化呈现', topicLabel: '公司名称', topicPh: '例如：XX科技有限公司', dirLabel: '分析侧重', dirPh: '例如：重点分析盈利能力和现金流', dirHint: '可选', showFiles: true, showSuggestions: false },
+        comps:     { title: '二级市场 Comps 分析', desc: '从赛道出发，自动匹配 A股/港股/美股可比公司并拉取实时估值数据', topicLabel: '项目/公司名称', topicPh: '例如：XX科技', dirLabel: '估值侧重（可选）', dirPh: '例如：更关注成长性溢价', dirHint: '可选', showFiles: true, showSuggestions: false },
+        industry:  { title: '行业研究报告', desc: '配置研究参数，AI 生成专业的行业研究报告', topicLabel: '研究主题', topicPh: '输入行业或细分领域', dirLabel: '研究方向', dirPh: '例如：市场规模与增长趋势', dirHint: '可选', showFiles: false, showSuggestions: true },
     };
 
     const c = cfg[type] || cfg.industry;
@@ -103,12 +103,18 @@ function openCreate(type) {
     document.getElementById('topic-suggestions').style.display = c.showSuggestions ? 'block' : 'none';
     document.getElementById('file-upload-group').style.display = c.showFiles ? 'block' : 'none';
 
-    // Show/hide structured field groups
-    document.getElementById('fields-project').style.display = (type === 'predd' || type === 'memo' || type === 'comps') ? 'block' : 'none';
-    document.getElementById('fields-memo').style.display = type === 'memo' ? 'block' : 'none';
-    document.getElementById('fields-ddfocus').style.display = type === 'predd' ? 'block' : 'none';
+    // Show/hide structured field groups per module
+    document.getElementById('fields-predd').style.display = type === 'predd' ? 'block' : 'none';
+    document.getElementById('fields-memo-project').style.display = type === 'memo' ? 'block' : 'none';
+    document.getElementById('fields-memo-deal').style.display = type === 'memo' ? 'block' : 'none';
+    document.getElementById('fields-comps').style.display = type === 'comps' ? 'block' : 'none';
     document.getElementById('fields-financial').style.display = type === 'financial' ? 'block' : 'none';
     document.getElementById('fields-industry').style.display = type === 'industry' ? 'block' : 'none';
+
+    // Pre-DD hides direction/custom_notes/depth since it should be minimal
+    const showMinimal = type === 'predd';
+    document.getElementById('direction-group').style.display = showMinimal ? 'none' : 'block';
+    // Keep depth for all, but Pre-DD auto-defaults to standard
 
     // Highlight sidebar
     document.querySelectorAll('.nav-btn[data-view]').forEach(b => b.classList.remove('active'));
@@ -362,29 +368,42 @@ async function handleSubmit(event) {
             assignees: selectedAssignees,
         };
 
-        if (reportType === 'predd' || reportType === 'memo' || reportType === 'comps') {
+        if (reportType === 'predd') {
+            // Minimal Pre-DD: only optional industry + round
             payload.project_info = {
-                company_name: val('pi-company'),
-                industry: val('pi-industry'),
-                round: val('pi-round'),
-                amount: val('pi-amount'),
-                valuation: val('pi-valuation'),
-                founded_year: val('pi-founded'),
-                headquarters: val('pi-hq'),
-                employee_count: val('pi-employees'),
-                core_product: val('pi-product'),
-                core_team: val('pi-team'),
+                industry: val('predd-industry'),
+                round: val('predd-round'),
             };
-            if (reportType === 'memo') {
-                payload.project_info.invest_amount = val('pi-invest');
-                payload.project_info.share_ratio = val('pi-share');
-                payload.project_info.lead_investor = val('pi-lead');
-                payload.project_info.co_investors = val('pi-co');
-                payload.project_info.invest_thesis = val('pi-thesis');
-            }
-            if (reportType === 'predd') {
-                payload.project_info.dd_focus = getCheckedValues('dd-focus-checks');
-            }
+        } else if (reportType === 'memo') {
+            // Memo: full project + deal info
+            payload.project_info = {
+                company_name: val('memo-company'),
+                industry: val('memo-industry'),
+                founded_year: val('memo-founded'),
+                headquarters: val('memo-hq'),
+                core_product: val('memo-product'),
+                core_team: val('memo-team'),
+                round: val('memo-round'),
+                amount: val('memo-amount'),
+                valuation: val('memo-valuation'),
+                invest_amount: val('memo-invest'),
+                share_ratio: val('memo-share'),
+                lead_investor: val('memo-lead'),
+                co_investors: val('memo-co'),
+                invest_thesis: val('memo-thesis'),
+            };
+        } else if (reportType === 'comps') {
+            // Comps: valuation-focused
+            payload.project_info = {
+                company_name: val('comps-company'),
+                industry: val('comps-industry'),
+                core_product: val('comps-product'),
+            };
+            payload.industry_info = {
+                sub_fields: val('comps-subsector'),
+                region: getCheckedValues('comps-markets').join(','),
+                time_range: getCheckedValues('comps-multiples').join(','),
+            };
         }
 
         if (reportType === 'financial') {
