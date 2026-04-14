@@ -252,15 +252,80 @@ func (c *Client) FetchCompsDataByMarket(ctx context.Context, symbols []string, m
 	return results, nil
 }
 
+// buildParamsForTool returns the correct parameter structure based on the tool ID.
+// Different Qveris tools have different parameter requirements.
+func buildParamsForTool(toolID, symbol string) map[string]any {
+	lid := strings.ToLower(toolID)
+
+	// Hang Seng Polysource tools (A股/港股) need "stockobject" / "stockObject"
+	if strings.Contains(lid, "hangseng_polysource") || strings.Contains(lid, "polysource") {
+		// The stockobject param is typically an object like {"code":"600519","market":"SH"}
+		// but some variants accept a string
+		code, market := parseStockCode(symbol)
+		stockObj := map[string]any{"code": code, "market": market}
+
+		return map[string]any{
+			"stockobject": stockObj,
+			"stockObject": stockObj, // some tools use camelCase
+			"symbol":      symbol,
+		}
+	}
+
+	// Finnhub tools need "symbol" + "metric"
+	if strings.Contains(lid, "finnhub") {
+		return map[string]any{
+			"symbol": symbol,
+			"metric": "all", // required param, means "all metrics"
+		}
+	}
+
+	// Alpha Vantage tools need "symbol" + "function"
+	if strings.Contains(lid, "alphavantage") {
+		return map[string]any{
+			"symbol":   symbol,
+			"function": "OVERVIEW",
+		}
+	}
+
+	// Financial Modeling Prep tools
+	if strings.Contains(lid, "financialmodelingprep") || strings.Contains(lid, "fmp") {
+		return map[string]any{
+			"symbol": symbol,
+		}
+	}
+
+	// Gildata tools
+	if strings.Contains(lid, "gildata") {
+		return map[string]any{
+			"query":  symbol,
+			"symbol": symbol,
+		}
+	}
+
+	// Default: try all common param names
+	return map[string]any{
+		"symbol": symbol,
+		"ticker": symbol,
+		"code":   symbol,
+		"stock":  symbol,
+	}
+}
+
+// parseStockCode splits "600519.SH" into ("600519", "SH") or "09988.HK" into ("09988", "HK")
+func parseStockCode(symbol string) (code, market string) {
+	if i := strings.Index(symbol, "."); i > 0 {
+		return symbol[:i], symbol[i+1:]
+	}
+	return symbol, ""
+}
+
 func (c *Client) fetchSingleCompany(ctx context.Context, toolID, searchID, symbol string) (*CompanyMetrics, error) {
-	// Normalize symbol for US market (strip .US, etc)
 	cleanSymbol := strings.TrimSpace(symbol)
 
-	resp, err := c.ExecuteTool(ctx, toolID, searchID, map[string]any{
-		"symbol": cleanSymbol,
-		"ticker": cleanSymbol,
-		"code":   cleanSymbol,
-	})
+	// Build parameters based on the tool. Different tools need different params.
+	params := buildParamsForTool(toolID, cleanSymbol)
+
+	resp, err := c.ExecuteTool(ctx, toolID, searchID, params)
 	if err != nil {
 		return nil, err
 	}
