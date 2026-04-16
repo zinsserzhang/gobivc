@@ -1,6 +1,7 @@
 package feishu
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -76,12 +77,21 @@ func (c *Client) run(ctx context.Context, args ...string) ([]byte, error) {
 		cmd = exec.CommandContext(ctx, c.CLIPath, args...)
 	}
 
-	// Use Output() to only capture stdout, ignoring stderr warnings
-	out, err := cmd.Output()
+	// Capture stdout and stderr separately: callers parse stdout as JSON,
+	// but on failure we surface stderr so the real lark-cli error is visible.
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	err := cmd.Run()
 	if err != nil {
-		return out, fmt.Errorf("lark-cli %s failed: %w\noutput: %s", strings.Join(args, " "), err, string(out))
+		return stdout.Bytes(), fmt.Errorf(
+			"lark-cli %s failed: %w\nstdout: %s\nstderr: %s",
+			strings.Join(args, " "), err,
+			strings.TrimSpace(stdout.String()),
+			strings.TrimSpace(stderr.String()),
+		)
 	}
-	return out, nil
+	return stdout.Bytes(), nil
 }
 
 // -- Search Documents --
