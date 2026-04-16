@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GobiVC - 投研工作台</title>
-    <link rel="stylesheet" href="/static/css/style.css?v=3">
+    <link rel="stylesheet" href="/static/css/style.css?v=4">
 </head>
 <body>
     <div id="app">
@@ -56,6 +56,23 @@
         </div>
 
         <main class="main-content" id="main-content">
+
+            <header class="desktop-topbar" id="desktop-topbar">
+                <div class="desktop-topbar-left">
+                    <span class="topbar-crumb">投研工作台</span>
+                    <span class="topbar-sep">/</span>
+                    <span class="topbar-current" id="topbar-current">行业研究报告</span>
+                </div>
+                <div class="desktop-topbar-right">
+                    <button class="topbar-btn" type="button" onclick="switchView('list')" title="全部报告">
+                        <span class="nav-icon">&#128196;</span>
+                        <span>全部报告</span>
+                    </button>
+                    <button class="topbar-btn" type="button" onclick="promptForToken()" title="API Token">
+                        <span class="nav-icon">&#9881;</span>
+                    </button>
+                </div>
+            </header>
 
             <!-- Unified Create View -->
             <div id="view-create" class="view active">

@@ -72,6 +72,13 @@ function switchView(view) {
     if (view === 'list') loadReports();
     if (view !== 'generating') { stopPolling(); stopStream(); }
 
+    // Update topbar breadcrumb for non-create views
+    const tbCurrent = document.getElementById('topbar-current');
+    if (tbCurrent) {
+        const labels = { list: '全部报告', detail: '报告详情', generating: '生成中' };
+        if (labels[view]) tbCurrent.textContent = labels[view];
+    }
+
     const sidebar = document.getElementById('sidebar');
     if (sidebar.classList.contains('open')) toggleSidebar();
     window.scrollTo(0, 0);
@@ -95,6 +102,8 @@ function openCreate(type) {
         descHtml = c.desc + '<br><span style="color:var(--danger);font-size:12px">⚠️ 当前 Qveris.ai 未配置，该模块无法使用。请联系管理员在服务器 .env 中设置 QVERIS_API_KEY 后重启服务。</span>';
     }
     document.getElementById('create-header').innerHTML = `<h2>${c.title}</h2><p>${descHtml}</p>`;
+    const tbCurrent = document.getElementById('topbar-current');
+    if (tbCurrent) tbCurrent.textContent = c.title;
     document.getElementById('topic-label').innerHTML = c.topicLabel + ' <span class="required">*</span>';
     document.getElementById('topic').placeholder = c.topicPh;
     document.getElementById('direction-label').textContent = c.dirLabel;
