@@ -238,21 +238,58 @@ body {
 .view { display: none; }
 .view.active { display: block; }
 
-/* ===== Form ===== */
+/* ===== Form (cards layout) ===== */
 .report-form {
-    background: var(--bg-white);
-    padding: 28px 32px;
-    border-radius: var(--radius);
-    box-shadow: var(--shadow);
-    border: 1px solid var(--border);
+    background: transparent;
+    padding: 0;
+    border: none;
+    box-shadow: none;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
 }
 
-.form-group { margin-bottom: 22px; }
+/* Each top-level group becomes its own card */
+.report-form > .form-group,
+.report-form > .structured-fields,
+.report-form > .feishu-group {
+    background: var(--bg-white);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px 24px;
+    margin-bottom: 0;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+    transition: border-color var(--transition), box-shadow var(--transition);
+}
+.report-form > .form-group:focus-within,
+.report-form > .structured-fields:focus-within,
+.report-form > .feishu-group:focus-within {
+    border-color: var(--primary-border);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 0 0 3px rgba(37, 99, 235, 0.06);
+}
+
+/* Top-level label = section header (larger, with accent) */
+.report-form > .form-group > label {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 15px; font-weight: 600;
+    margin-bottom: 12px; color: var(--text);
+    letter-spacing: -0.1px;
+}
+.report-form > .form-group > label::before {
+    content: ''; width: 3px; height: 14px;
+    background: linear-gradient(180deg, #3b82f6, #6366f1);
+    border-radius: 2px; flex-shrink: 0;
+}
+/* Feishu card's label already has its own icon; suppress the extra bar */
+.report-form > .feishu-group > label::before { display: none; }
+
+/* Nested form-groups (inside structured-fields) keep simple labels */
+.form-group { margin-bottom: 18px; }
 .form-group label {
-    display: block; font-size: 14px; font-weight: 600;
+    display: block; font-size: 13px; font-weight: 500;
     margin-bottom: 6px; color: var(--text);
 }
-.required { color: var(--danger); }
+.required { color: var(--danger); margin-left: 2px; }
 
 .form-group input[type="text"],
 .form-group textarea,
@@ -301,22 +338,32 @@ body {
 .depth-time { font-size: 11px; color: var(--text-light); margin-top: 8px; }
 
 /* ===== Structured Fields ===== */
-.structured-fields {
-    background: var(--bg); border: 1px solid var(--border);
-    border-radius: var(--radius); padding: 16px 20px; margin-bottom: 22px;
-}
+/* When inside .report-form, the outer card styling already applies; here we
+   only handle its inner section title and grid. */
 .fields-section-title {
-    font-size: 13px; font-weight: 600; color: var(--text-secondary);
-    margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px;
+    display: flex; align-items: center; gap: 8px;
+    font-size: 15px; font-weight: 600; color: var(--text);
+    margin-bottom: 14px; letter-spacing: -0.1px;
+}
+.fields-section-title::before {
+    content: ''; width: 3px; height: 14px;
+    background: linear-gradient(180deg, #3b82f6, #6366f1);
+    border-radius: 2px; flex-shrink: 0;
+}
+/* Subsequent section titles inside the same card get a top divider */
+.structured-fields .fields-section-title:not(:first-child) {
+    margin-top: 18px;
+    padding-top: 18px;
+    border-top: 1px dashed var(--border);
 }
 .fields-grid {
-    display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px 16px;
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px 18px;
     margin-bottom: 12px;
 }
 .fields-grid .form-group { margin-bottom: 0; }
-.fields-grid label { font-size: 13px; font-weight: 500; margin-bottom: 4px; }
+.fields-grid label { font-size: 13px; font-weight: 500; margin-bottom: 5px; color: var(--text-secondary); }
 .fields-grid input, .fields-grid select {
-    padding: 7px 10px; font-size: 13px;
+    padding: 8px 11px; font-size: 13.5px;
 }
 
 .checkbox-group {
@@ -440,14 +487,15 @@ body {
 .file-item-remove:hover { color: var(--danger); }
 
 /* ===== Feishu Toggle ===== */
-.feishu-group {
-    background: #f0f5ff;
-    border: 1px solid #d6e4ff;
-    border-radius: var(--radius);
-    padding: 16px 20px;
+.report-form > .feishu-group {
+    background: linear-gradient(135deg, #f0f5ff 0%, #f7faff 100%);
+    border-color: #d6e4ff;
 }
-.feishu-label { font-size: 14px; font-weight: 600; color: var(--text); }
-.feishu-toggle { display: flex; align-items: center; gap: 12px; margin-top: 8px; }
+.feishu-label {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 15px; font-weight: 600; color: var(--text);
+}
+.feishu-toggle { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
 .feishu-desc { font-size: 13px; color: var(--text-secondary); }
 
 .toggle-switch { position: relative; display: inline-block; width: 44px; height: 24px; flex-shrink: 0; }
