@@ -20,6 +20,9 @@ services:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - ANTHROPIC_MODEL=${ANTHROPIC_MODEL}
       - ANTHROPIC_BASE_URL=${ANTHROPIC_BASE_URL}
+      # Containers have no OS keychain; force lark-cli to read/write
+      # app_secret as plaintext in config.json instead of the host keychain.
+      - LARK_CLI_KEYCHAIN_DISABLED=1
     volumes:
       - gobivc-data:/app/data
       # Mount lark-cli config from host for Feishu integration
