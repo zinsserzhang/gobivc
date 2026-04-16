@@ -24,6 +24,9 @@ services:
       - gobivc-data:/app/data
       # Mount lark-cli config from host for Feishu integration
       - ${HOME}/.lark-cli:/home/gobivc/.lark-cli
+      # Mount web assets from host so HTML/CSS/JS edits take effect on `git pull`
+      # without rebuilding the image. Go binary changes still need --build.
+      - ./web:/app/web:ro
     restart: unless-stopped
 
 volumes:
