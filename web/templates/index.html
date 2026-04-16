@@ -4,14 +4,19 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GobiVC - 投研工作台</title>
-    <link rel="stylesheet" href="/static/css/style.css?v=4">
+    <link rel="stylesheet" href="/static/css/style.css?v=5">
 </head>
 <body>
     <div id="app">
         <aside class="sidebar" id="sidebar">
             <div class="sidebar-header">
-                <h1 class="logo">GobiVC</h1>
-                <p class="logo-sub">投研工作台</p>
+                <div class="logo-row">
+                    <div class="logo-mark">G</div>
+                    <div class="logo-text">
+                        <h1 class="logo">GobiVC</h1>
+                        <p class="logo-sub">投研工作台</p>
+                    </div>
+                </div>
             </div>
             <nav class="sidebar-nav">
                 <div class="nav-section-label">生成</div>
@@ -43,7 +48,21 @@
                 </button>
             </nav>
             <div class="sidebar-footer">
-                <button class="nav-btn" onclick="promptForToken()">
+                <div class="sidebar-status" id="sidebar-status">
+                    <div class="status-row" title="MiniMax 模型">
+                        <span class="status-dot" id="status-ai"></span>
+                        <span class="status-label">AI 模型</span>
+                    </div>
+                    <div class="status-row" title="飞书知识库">
+                        <span class="status-dot" id="status-feishu"></span>
+                        <span class="status-label">飞书</span>
+                    </div>
+                    <div class="status-row" title="Qveris 行情">
+                        <span class="status-dot" id="status-qveris"></span>
+                        <span class="status-label">Qveris</span>
+                    </div>
+                </div>
+                <button class="nav-btn sidebar-token-btn" onclick="promptForToken()">
                     <span class="nav-icon">&#9881;</span>
                     <span class="nav-text">API Token</span>
                 </button>

@@ -178,7 +178,19 @@ async function checkStatus() {
                 compsBtn.style.opacity = '0.7';
             }
         }
-    } catch (e) { /* ignore */ }
+        // Sidebar status dots: AI is always on (server is responding), feishu/qveris from health
+        setStatusDot('status-ai', true);
+        setStatusDot('status-feishu', !!data.feishu_enabled);
+        setStatusDot('status-qveris', !!data.qveris_enabled);
+    } catch (e) {
+        setStatusDot('status-ai', false);
+        setStatusDot('status-feishu', false);
+        setStatusDot('status-qveris', false);
+    }
+}
+function setStatusDot(id, on) {
+    const el = document.getElementById(id);
+    if (el) el.classList.toggle('on', !!on);
 }
 checkStatus();
 
