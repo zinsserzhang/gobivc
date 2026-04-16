@@ -306,10 +306,12 @@ func (c *Client) SearchContacts(ctx context.Context, query string) ([]Contact, e
 		}
 	}
 
-	// Method 2: list department members (works with bot token) and filter by name
+	// Method 2: list department members (works with bot token) and filter by name.
+	// Root department id "0" is only valid when department_id_type=department_id
+	// (the default is open_department_id, which rejects "0" with [10003] invalid param).
 	out, err = c.run(ctx, "api", "GET",
 		"/open-apis/contact/v3/users/find_by_department",
-		"--params", `{"department_id":"0","page_size":50,"user_id_type":"open_id"}`,
+		"--params", `{"department_id":"0","department_id_type":"department_id","page_size":50,"user_id_type":"open_id"}`,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("feishu: contact search failed: %w", err)
