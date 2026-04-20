@@ -118,7 +118,7 @@ func (c *Client) ExecuteTool(ctx context.Context, toolID, searchID string, param
 	body, _ := json.Marshal(map[string]any{
 		"search_id":         searchID,
 		"parameters":        params,
-		"max_response_size": 40960,
+		"max_response_size": 262144,
 	})
 
 	data, err := c.doRequest(ctx, "POST", "/tools/execute?tool_id="+toolID, body)
@@ -331,6 +331,23 @@ func buildParamsFromSchema(tool *searchTool, symbol string) map[string]any {
 		}
 	}
 
+	// Hang Seng tools require stockObject/stockobject even when the returned
+	// schema doesn't declare it. Different tools use different casings
+	// (A-share uses "stockobject", HK uses "stockObject") — send both so the
+	// server accepts either without a second roundtrip.
+	if strings.HasPrefix(tool.ToolID, "hangseng_") {
+		stockObj := map[string]any{"code": code}
+		if market != "" {
+			stockObj["market"] = market
+		}
+		if _, has := params["stockObject"]; !has {
+			params["stockObject"] = stockObj
+		}
+		if _, has := params["stockobject"]; !has {
+			params["stockobject"] = stockObj
+		}
+	}
+
 	return params
 }
 
@@ -360,16 +377,16 @@ func (c *Client) fetchSingleCompany(ctx context.Context, tool *searchTool, searc
 	metrics := &CompanyMetrics{
 		Symbol:        symbol,
 		Name:          extractString(rawData, "name", "company_name", "shortName", "longName", "companyName"),
-		MarketCap:     extractMoney(rawData, "market_cap", "marketCap", "mktCap", "market_capitalization"),
+		MarketCap:     extractMoney(rawData, "market_cap", "marketCap", "mktCap", "market_capitalization", "marketCapitalization"),
 		Price:         extractString(rawData, "price", "current_price", "currentPrice", "regularMarketPrice", "last_price"),
-		PE:            extractNumber(rawData, "pe_ratio", "pe", "trailingPE", "peRatio", "price_earnings_ratio"),
-		PS:            extractNumber(rawData, "ps_ratio", "ps", "priceToSales", "psRatio", "price_to_sales"),
-		PB:            extractNumber(rawData, "pb_ratio", "pb", "priceToBook", "pbRatio", "price_to_book"),
-		EVEBITDA:      extractNumber(rawData, "ev_ebitda", "evEbitda", "enterpriseToEbitda", "ev_to_ebitda"),
-		Revenue:       extractMoney(rawData, "revenue", "totalRevenue", "total_revenue", "revenueTtm"),
-		NetIncome:     extractMoney(rawData, "net_income", "netIncome", "net_profit", "netIncomeTtm"),
-		GrossMargin:   extractPercent(rawData, "gross_margin", "grossMargin", "grossMargins", "gross_profit_margin"),
-		RevenueGrowth: extractPercent(rawData, "revenue_growth", "revenueGrowth", "revenue_growth_yoy"),
+		PE:            extractNumber(rawData, "pe_ratio", "pe", "trailingPE", "peRatio", "price_earnings_ratio", "peTTM", "peBasicExclExtraTTM", "peNormalizedAnnual", "peAnnual"),
+		PS:            extractNumber(rawData, "ps_ratio", "ps", "priceToSales", "psRatio", "price_to_sales", "psTTM", "psAnnual"),
+		PB:            extractNumber(rawData, "pb_ratio", "pb", "priceToBook", "pbRatio", "price_to_book", "pbQuarterly", "pbAnnual"),
+		EVEBITDA:      extractNumber(rawData, "ev_ebitda", "evEbitda", "enterpriseToEbitda", "ev_to_ebitda", "currentEv/freeCashFlowTTM"),
+		Revenue:       extractMoney(rawData, "revenue", "totalRevenue", "total_revenue", "revenueTtm", "revenueTTM", "revenuePerShareTTM"),
+		NetIncome:     extractMoney(rawData, "net_income", "netIncome", "net_profit", "netIncomeTtm", "netIncomeEmployeeAnnual", "netIncomeCommonStockholdersAnnual"),
+		GrossMargin:   extractPercent(rawData, "gross_margin", "grossMargin", "grossMargins", "gross_profit_margin", "grossMarginTTM", "grossMarginAnnual"),
+		RevenueGrowth: extractPercent(rawData, "revenue_growth", "revenueGrowth", "revenue_growth_yoy", "revenueGrowthTTMYoy", "revenueGrowth5Y", "revenueGrowthQuarterlyYoy"),
 		Source:        "Qveris.ai",
 	}
 
@@ -387,23 +404,26 @@ func (c *Client) fetchSingleCompany(ctx context.Context, tool *searchTool, searc
 }
 
 // flattenResult tries to unwrap common nested response shapes.
+// Runs two passes so deeply nested shapes like {"data":{"metric":{...}}} are
+// fully surfaced to the top level.
 func flattenResult(data json.RawMessage) map[string]any {
 	var m map[string]any
-	if err := json.Unmarshal(data, &m); err == nil {
-		// Common nesting: { "data": {...} } or { "result": {...} } or { "quote": {...} }
-		for _, key := range []string{"data", "result", "quote", "summary", "defaultKeyStatistics", "financialData"} {
+	if err := json.Unmarshal(data, &m); err != nil {
+		return map[string]any{}
+	}
+	keys := []string{"data", "result", "quote", "summary", "metric", "metrics", "defaultKeyStatistics", "financialData"}
+	for pass := 0; pass < 2; pass++ {
+		for _, key := range keys {
 			if nested, ok := m[key]; ok {
 				if nestedMap, ok := nested.(map[string]any); ok && len(nestedMap) > 0 {
-					// Merge into parent
 					for k, v := range nestedMap {
 						m[k] = v
 					}
 				}
 			}
 		}
-		return m
 	}
-	return map[string]any{}
+	return m
 }
 
 // extractString tries multiple keys and returns the first non-empty value.
