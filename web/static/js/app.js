@@ -273,44 +273,96 @@ function handleDrop(event) {
     if (files.length > 0) uploadFiles(files);
 }
 
-async function uploadFiles(files) {
+function uploadFiles(files) {
     const formData = new FormData();
     for (const f of files) {
         formData.append('files', f);
     }
 
     const listEl = document.getElementById('file-list');
+    const pendingIds = [];
 
-    // Show uploading state
+    // Show uploading state with progress bar
     for (const f of files) {
+        const pendingId = 'file-pending-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+        pendingIds.push(pendingId);
         const el = document.createElement('div');
-        el.className = 'file-item';
-        el.id = 'file-pending-' + f.name;
+        el.className = 'file-item file-item-pending';
+        el.id = pendingId;
         el.innerHTML = `
-            <span class="file-item-name">${escapeHtml(f.name)}</span>
-            <span class="file-item-size">${formatFileSize(f.size)}</span>
-            <span class="file-item-status uploading">上传中...</span>
+            <div class="file-item-row">
+                <span class="file-item-name">${escapeHtml(f.name)}</span>
+                <span class="file-item-size">${formatFileSize(f.size)}</span>
+                <span class="file-item-status uploading">上传中 <span class="file-item-percent">0%</span></span>
+            </div>
+            <div class="file-progress"><div class="file-progress-bar" style="width:0%"></div></div>
         `;
         listEl.appendChild(el);
     }
 
-    try {
-        const token = getApiToken();
-        const headers = {};
-        if (token) headers['Authorization'] = 'Bearer ' + token;
+    const updateProgress = (percent) => {
+        for (const id of pendingIds) {
+            const el = document.getElementById(id);
+            if (!el) continue;
+            const bar = el.querySelector('.file-progress-bar');
+            const pct = el.querySelector('.file-item-percent');
+            if (bar) bar.style.width = percent + '%';
+            if (pct) pct.textContent = percent + '%';
+        }
+    };
 
-        const resp = await fetch('/api/uploads', { method: 'POST', headers, body: formData });
-        const data = await resp.json();
+    const markFailed = (message) => {
+        for (const id of pendingIds) {
+            const el = document.getElementById(id);
+            if (!el) continue;
+            el.classList.remove('file-item-pending');
+            const status = el.querySelector('.file-item-status');
+            if (status) {
+                status.className = 'file-item-status error';
+                status.textContent = '失败';
+            }
+            const progress = el.querySelector('.file-progress');
+            if (progress) progress.remove();
+        }
+        toast('上传失败: ' + message, 'error');
+    };
 
-        if (!resp.ok) throw new Error(data.error || '上传失败');
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/uploads');
+    const token = getApiToken();
+    if (token) xhr.setRequestHeader('Authorization', 'Bearer ' + token);
 
-        // Remove pending items
-        for (const f of files) {
-            const el = document.getElementById('file-pending-' + f.name);
+    xhr.upload.addEventListener('progress', (e) => {
+        if (e.lengthComputable) {
+            updateProgress(Math.round((e.loaded / e.total) * 100));
+        }
+    });
+
+    xhr.upload.addEventListener('load', () => {
+        updateProgress(100);
+        // Switch to "处理中" while server extracts text
+        for (const id of pendingIds) {
+            const el = document.getElementById(id);
+            if (!el) continue;
+            const status = el.querySelector('.file-item-status');
+            if (status) status.innerHTML = '处理中...';
+        }
+    });
+
+    xhr.addEventListener('load', () => {
+        let data;
+        try { data = JSON.parse(xhr.responseText); } catch (_) { data = null; }
+
+        if (xhr.status < 200 || xhr.status >= 300) {
+            markFailed((data && data.error) || ('HTTP ' + xhr.status));
+            return;
+        }
+
+        for (const id of pendingIds) {
+            const el = document.getElementById(id);
             if (el) el.remove();
         }
 
-        // Add successful items
         for (const uf of data) {
             uploadedFileIDs.push(uf.id);
             const el = document.createElement('div');
@@ -318,25 +370,22 @@ async function uploadFiles(files) {
             el.dataset.fileId = uf.id;
             const textLen = uf.text ? uf.text.length : 0;
             el.innerHTML = `
-                <span class="file-item-name">${escapeHtml(uf.name)}</span>
-                <span class="file-item-size">${formatFileSize(uf.size)}</span>
-                <span class="file-item-status success">${textLen > 0 ? '已提取 ' + textLen + ' 字' : '已上传'}</span>
-                <button type="button" class="file-item-remove" onclick="removeFile('${uf.id}', this)">&#10005;</button>
+                <div class="file-item-row">
+                    <span class="file-item-name">${escapeHtml(uf.name)}</span>
+                    <span class="file-item-size">${formatFileSize(uf.size)}</span>
+                    <span class="file-item-status success">${textLen > 0 ? '已提取 ' + textLen + ' 字' : '已上传'}</span>
+                    <button type="button" class="file-item-remove" onclick="removeFile('${uf.id}', this)">&#10005;</button>
+                </div>
             `;
             listEl.appendChild(el);
         }
         toast(`成功上传 ${data.length} 个文件`, 'success');
-    } catch (err) {
-        // Mark as failed
-        for (const f of files) {
-            const el = document.getElementById('file-pending-' + f.name);
-            if (el) {
-                el.querySelector('.file-item-status').className = 'file-item-status error';
-                el.querySelector('.file-item-status').textContent = '失败';
-            }
-        }
-        toast('上传失败: ' + err.message, 'error');
-    }
+    });
+
+    xhr.addEventListener('error', () => markFailed('网络错误'));
+    xhr.addEventListener('abort', () => markFailed('已取消'));
+
+    xhr.send(formData);
 }
 
 function removeFile(fileId, btn) {

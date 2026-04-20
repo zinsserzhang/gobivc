@@ -553,17 +553,27 @@ body {
 
 .file-list { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
 .file-item {
-    display: flex; align-items: center; gap: 10px;
     padding: 8px 12px; background: var(--bg);
     border: 1px solid var(--border); border-radius: var(--radius-sm);
     font-size: 13px;
 }
+.file-item-row { display: flex; align-items: center; gap: 10px; }
 .file-item-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .file-item-size { color: var(--text-light); font-size: 12px; flex-shrink: 0; }
 .file-item-status { font-size: 12px; flex-shrink: 0; }
 .file-item-status.success { color: var(--success); }
 .file-item-status.error { color: var(--danger); }
 .file-item-status.uploading { color: var(--info); }
+.file-item-percent { font-variant-numeric: tabular-nums; }
+.file-item-pending { background: var(--primary-light); border-color: rgba(37, 99, 235, 0.25); }
+.file-progress {
+    margin-top: 6px; height: 4px; background: rgba(37, 99, 235, 0.12);
+    border-radius: 999px; overflow: hidden;
+}
+.file-progress-bar {
+    height: 100%; background: linear-gradient(90deg, var(--primary), #60a5fa);
+    border-radius: 999px; transition: width 0.15s ease-out;
+}
 .file-item-remove {
     background: none; border: none; color: var(--text-light);
     cursor: pointer; font-size: 16px; padding: 0 4px;
