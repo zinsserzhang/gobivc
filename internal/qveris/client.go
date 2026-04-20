@@ -192,26 +192,17 @@ func (c *Client) getFinancialTools(ctx context.Context, market string) (*cachedT
 		return cached, nil
 	}
 
-	var queries []string
-	switch market {
-	case "A股":
-		queries = []string{
-			"China A-share stock financial data P/E ratio",
-			"Chinese stock market fundamentals",
-			"stock quote fundamentals financial ratios",
-		}
-	case "港股":
-		queries = []string{
-			"Hong Kong stock financial data P/E ratio",
-			"HK stock market fundamentals valuation",
-			"stock quote fundamentals financial ratios",
-		}
-	default:
-		queries = []string{
-			"US stock financial data P/E ratio market cap",
-			"stock fundamentals valuation metrics",
-			"stock quote fundamentals financial ratios",
-		}
+	// Hang Seng Polysource tools (the "native" Chinese/HK market data providers
+	// Qveris surfaces for A股/港股) are broken server-side: financialRatioComparison
+	// returns 404, stockvalueanalysis returns NPE, and US Valuation Metrics
+	// rejects param shapes. Yahoo Finance's quoteSummary does support global
+	// tickers (.SS/.SZ/.HK), and Finnhub covers some HK names too. So route
+	// A股/港股 through the same Finnhub/Yahoo tools we use for 美股 — we just
+	// convert the ticker format in buildParamsFromSchema.
+	queries := []string{
+		"US stock financial data P/E ratio market cap",
+		"stock fundamentals valuation metrics",
+		"stock quote fundamentals financial ratios",
 	}
 
 	for _, q := range queries {
@@ -338,11 +329,37 @@ func parseStockCode(symbol string) (code, market string) {
 	return symbol, ""
 }
 
+// toYahooSymbol converts our market suffix to Yahoo Finance's expected form.
+// Shanghai A-shares use .SS on Yahoo (we accept .SH as input); HK tickers
+// need 4-digit zero-padding ("0700.HK"); Shenzhen .SZ and US symbols are
+// unchanged. Finnhub accepts the same .SS/.SZ form as Yahoo.
+func toYahooSymbol(symbol string) string {
+	i := strings.Index(symbol, ".")
+	if i <= 0 {
+		return symbol
+	}
+	code, market := symbol[:i], strings.ToUpper(symbol[i+1:])
+	switch market {
+	case "SH":
+		return code + ".SS"
+	case "HK":
+		if len(code) < 4 {
+			code = strings.Repeat("0", 4-len(code)) + code
+		}
+		return code + ".HK"
+	default:
+		return symbol
+	}
+}
+
 // buildParamsFromSchema builds parameters using the tool's declared schema.
 // Only includes params that the tool actually declares, with correct types.
 func buildParamsFromSchema(tool *searchTool, symbol string) map[string]any {
 	params := make(map[string]any)
 	code, market := parseStockCode(symbol)
+	// For Finnhub/Yahoo tools (the path we take for all markets now), A股/港股
+	// tickers must be translated to Yahoo's convention (.SS / padded .HK).
+	tickerSymbol := toYahooSymbol(symbol)
 
 	for _, p := range tool.Params {
 		nameL := strings.ToLower(p.Name)
@@ -359,7 +376,7 @@ func buildParamsFromSchema(tool *searchTool, symbol string) map[string]any {
 
 		// Symbol-like params
 		if contains(nameL, []string{"symbol", "ticker", "code", "stock", "secucode", "instrument"}) {
-			params[p.Name] = symbol
+			params[p.Name] = tickerSymbol
 			continue
 		}
 
@@ -377,7 +394,7 @@ func buildParamsFromSchema(tool *searchTool, symbol string) map[string]any {
 			case "function":
 				params[p.Name] = "OVERVIEW"
 			case "query":
-				params[p.Name] = symbol
+				params[p.Name] = tickerSymbol
 			case "pageno":
 				params[p.Name] = 1
 			case "pagesize":
