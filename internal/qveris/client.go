@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -397,14 +398,34 @@ func toThsCode(symbol, market string) string {
 
 // THS iFinD tool IDs (confirmed via Qveris open-qveris-skills/stock-copilot-pro).
 const (
-	thsQuoteToolID  = "ths_ifind.real_time_quotation.v1"
-	thsBasicsToolID = "ths_ifind.company_basics.v1"
+	thsQuoteToolID      = "ths_ifind.real_time_quotation.v1"
+	thsBasicsToolID     = "ths_ifind.company_basics.v1"
+	thsStatementToolID  = "ths_ifind.financial_statements.v1"
 )
 
+// thsReportPeriod returns the latest completed THS report period (year, MMDD)
+// per the official skill's latestCompletedReportPeriod logic. THS uses a
+// year/period pair where period is "0331"/"0630"/"0930"/"1231".
+func thsReportPeriod() (year, period string) {
+	now := time.Now()
+	y, m := now.Year(), int(now.Month())
+	switch {
+	case m <= 4:
+		return strconv.Itoa(y - 1), "0930"
+	case m <= 8:
+		return strconv.Itoa(y), "0331"
+	case m <= 10:
+		return strconv.Itoa(y), "0630"
+	default:
+		return strconv.Itoa(y), "0930"
+	}
+}
+
 // fetchThsCompsData fetches A-share / HK comps data using THS iFinD tools
-// directly. It calls the real-time quotation for price/PE/PB/marketCap, then
-// company_basics for the Chinese name, industry, and revenue/net income.
+// directly. Calls quotation + company_basics + income statement + balance
+// sheet, then derives P/S, gross margin, and EV/EBITDA from the raw fields.
 func (c *Client) fetchThsCompsData(ctx context.Context, symbols []string, market string) ([]CompanyMetrics, error) {
+	year, period := thsReportPeriod()
 	var results []CompanyMetrics
 	for _, raw := range symbols {
 		sym := strings.TrimSpace(raw)
@@ -412,7 +433,7 @@ func (c *Client) fetchThsCompsData(ctx context.Context, symbols []string, market
 			continue
 		}
 		code := toThsCode(sym, market)
-		log.Printf("INFO: ths_ifind: fetching %s (code=%s)", sym, code)
+		log.Printf("INFO: ths_ifind: fetching %s (code=%s, report=%s/%s)", sym, code, year, period)
 
 		m := CompanyMetrics{
 			Symbol: sym, Name: sym, Source: "THS iFinD",
@@ -421,13 +442,18 @@ func (c *Client) fetchThsCompsData(ctx context.Context, symbols []string, market
 			GrossMargin: "-", RevenueGrowth: "-",
 		}
 
-		params := map[string]any{"codes": code}
-		if resp, err := c.ExecuteTool(ctx, thsQuoteToolID, "", params); err == nil {
+		var marketCapNum, revenueNum, operatingCost, operatingProfit, da, ebitda, cash, debt float64
+
+		codeParams := map[string]any{"codes": code}
+
+		// 1. Quote
+		if resp, err := c.ExecuteTool(ctx, thsQuoteToolID, "", codeParams); err == nil {
 			if row := pickThsRow(c.resolveResult(ctx, resp.Result)); row != nil {
 				m.Price = extractString(row, "latest", "close", "price")
 				m.MarketCap = extractMoney(row, "mv", "totalCapital", "marketCap")
 				m.PE = extractNumber(row, "pe_ttm", "pe")
 				m.PB = extractNumber(row, "pb", "pbr_lf")
+				marketCapNum = extractFloat(row, "mv", "totalCapital", "marketCap")
 				if n := extractString(row, "ths_corp_cn_name_stock", "ths_short_name_stock", "short_name"); n != "-" {
 					m.Name = n
 				}
@@ -436,7 +462,8 @@ func (c *Client) fetchThsCompsData(ctx context.Context, symbols []string, market
 			log.Printf("WARNING: ths_ifind quotation failed for %s: %v", code, err)
 		}
 
-		if resp, err := c.ExecuteTool(ctx, thsBasicsToolID, "", params); err == nil {
+		// 2. Company basics (name + revenue + net income from latest annual)
+		if resp, err := c.ExecuteTool(ctx, thsBasicsToolID, "", codeParams); err == nil {
 			if row := pickThsRow(c.resolveResult(ctx, resp.Result)); row != nil {
 				if m.Name == "-" || m.Name == sym {
 					if n := extractString(row, "ths_corp_cn_name_stock", "ths_short_name_stock", "short_name"); n != "-" {
@@ -449,9 +476,98 @@ func (c *Client) fetchThsCompsData(ctx context.Context, symbols []string, market
 				if m.NetIncome == "-" {
 					m.NetIncome = extractMoney(row, "ths_np_atoopc_stock", "ths_np_stock")
 				}
+				if revenueNum == 0 {
+					revenueNum = extractFloat(row, "ths_revenue_stock", "ths_operating_total_revenue_stock")
+				}
 			}
 		} else {
 			log.Printf("WARNING: ths_ifind basics failed for %s: %v", code, err)
+		}
+
+		// 3. Income statement (gross margin + EBITDA components)
+		incomeParams := map[string]any{
+			"statement_type": "income",
+			"codes":          code,
+			"year":           year,
+			"period":         period,
+			"type":           "1",
+		}
+		if resp, err := c.ExecuteTool(ctx, thsStatementToolID, "", incomeParams); err == nil {
+			if row := pickThsRow(c.resolveResult(ctx, resp.Result)); row != nil {
+				logRowKeys("income", code, row)
+				operatingCost = extractFloat(row,
+					"ths_operating_cost_stock", "ths_op_cost_stock", "ths_oper_cost_stock",
+					"ths_op_total_cost_stock", "ths_total_op_cost_stock")
+				operatingProfit = extractFloat(row,
+					"ths_op_profit_stock", "ths_oper_profit_stock", "ths_operating_profit_stock")
+				ebitda = extractFloat(row,
+					"ths_ebitda_stock", "ths_ebit_stock")
+				if revenueNum == 0 {
+					revenueNum = extractFloat(row,
+						"ths_revenue_stock", "ths_operating_total_revenue_stock",
+						"ths_op_total_inc_stock", "ths_total_op_inc_stock")
+					if revenueNum > 0 && m.Revenue == "-" {
+						m.Revenue = formatMoney(revenueNum)
+					}
+				}
+				// Try to find D&A inline (may also live in cash flow)
+				da = extractFloat(row,
+					"ths_da_stock", "ths_dep_amort_stock", "ths_depreciation_amortization_stock")
+			}
+		} else {
+			log.Printf("WARNING: ths_ifind income failed for %s: %v", code, err)
+		}
+
+		// 4. Balance sheet (cash + interest-bearing debt for EV)
+		balanceParams := map[string]any{
+			"statement_type": "balance",
+			"codes":          code,
+			"year":           year,
+			"period":         period,
+			"type":           "1",
+		}
+		if resp, err := c.ExecuteTool(ctx, thsStatementToolID, "", balanceParams); err == nil {
+			if row := pickThsRow(c.resolveResult(ctx, resp.Result)); row != nil {
+				logRowKeys("balance", code, row)
+				cash = extractFloat(row,
+					"ths_monetary_funds_stock", "ths_monetary_capital_stock",
+					"ths_cash_and_cash_equivalents_stock", "ths_currency_fund_stock", "ths_cash_stock")
+				cash += extractFloat(row,
+					"ths_tradable_fin_assets_stock", "ths_trading_financial_assets_stock",
+					"ths_trade_fin_assets_stock")
+				debt = extractFloat(row,
+					"ths_st_loan_stock", "ths_short_term_loan_stock", "ths_st_borrow_stock")
+				debt += extractFloat(row,
+					"ths_lt_loan_stock", "ths_long_term_loan_stock", "ths_lt_borrow_stock")
+				debt += extractFloat(row,
+					"ths_bonds_payable_stock", "ths_bond_payable_stock", "ths_bonds_pay_stock")
+			}
+		} else {
+			log.Printf("WARNING: ths_ifind balance failed for %s: %v", code, err)
+		}
+
+		// Derived: P/S
+		if marketCapNum > 0 && revenueNum > 0 {
+			m.PS = fmt.Sprintf("%.2f", marketCapNum/revenueNum)
+		}
+		// Derived: Gross margin
+		if revenueNum > 0 && operatingCost > 0 && operatingCost < revenueNum {
+			gm := (revenueNum - operatingCost) / revenueNum * 100
+			m.GrossMargin = fmt.Sprintf("%.1f%%", gm)
+		}
+		// Derived: EBITDA (use direct field if present, else operatingProfit + D&A)
+		if ebitda == 0 {
+			ebitda = operatingProfit + da
+		}
+		// Derived: EV/EBITDA
+		if ebitda > 0 && marketCapNum > 0 {
+			ev := marketCapNum + debt - cash
+			m.EVEBITDA = fmt.Sprintf("%.2f", ev/ebitda)
+			log.Printf("INFO: ths_ifind %s EV/EBITDA computed: ev=%.2e ebitda=%.2e (mv=%.2e debt=%.2e cash=%.2e)",
+				code, ev, ebitda, marketCapNum, debt, cash)
+		} else {
+			log.Printf("INFO: ths_ifind %s EV/EBITDA unavailable: ebitda=%.2f mv=%.2f opProfit=%.2f da=%.2f",
+				code, ebitda, marketCapNum, operatingProfit, da)
 		}
 
 		if m.MarketCap == "-" && m.PE == "-" && m.Price == "-" && m.Revenue == "-" {
@@ -461,6 +577,45 @@ func (c *Client) fetchThsCompsData(ctx context.Context, symbols []string, market
 		time.Sleep(200 * time.Millisecond)
 	}
 	return results, nil
+}
+
+// logRowKeys logs the field names present in a THS row so we can iterate on
+// alias mappings when a metric comes back empty. Kept at INFO so it shows
+// up alongside the executes without enabling DEBUG.
+func logRowKeys(label, code string, row map[string]any) {
+	keys := make([]string, 0, len(row))
+	for k := range row {
+		keys = append(keys, k)
+	}
+	log.Printf("INFO: ths_ifind %s row keys for %s: %v", label, code, keys)
+}
+
+// extractFloat returns the first non-zero numeric value from the given keys.
+func extractFloat(data map[string]any, keys ...string) float64 {
+	for _, k := range keys {
+		v, ok := data[k]
+		if !ok || v == nil {
+			continue
+		}
+		switch n := v.(type) {
+		case float64:
+			if n != 0 {
+				return n
+			}
+		case int:
+			if n != 0 {
+				return float64(n)
+			}
+		case string:
+			if n == "" {
+				continue
+			}
+			if f, err := strconv.ParseFloat(n, 64); err == nil && f != 0 {
+				return f
+			}
+		}
+	}
+	return 0
 }
 
 // pickThsRow extracts the first row from a THS-shaped response:
