@@ -104,6 +104,32 @@ func (c *Client) SearchTools(ctx context.Context, query string, limit int) (*sea
 	return &resp, nil
 }
 
+// GetToolsByIDs fetches full schemas for specific tool IDs. The /search endpoint
+// returns partial/truncated param definitions; /tools/by-ids returns the
+// complete schema including nested object properties.
+func (c *Client) GetToolsByIDs(ctx context.Context, toolIDs []string, searchID string) ([]searchTool, error) {
+	if len(toolIDs) == 0 {
+		return nil, nil
+	}
+	body, _ := json.Marshal(map[string]any{
+		"tool_ids":  toolIDs,
+		"search_id": searchID,
+	})
+
+	data, err := c.doRequest(ctx, "POST", "/tools/by-ids", body)
+	if err != nil {
+		return nil, err
+	}
+
+	log.Printf("DEBUG: qveris tools/by-ids response: %s", truncate(string(data), 2000))
+
+	var resp searchResponse // same shape as /search
+	if err := json.Unmarshal(data, &resp); err != nil {
+		return nil, fmt.Errorf("qveris: parse by-ids response: %w", err)
+	}
+	return resp.getTools(), nil
+}
+
 // -- Execute a tool --
 
 type executeResponse struct {
@@ -202,6 +228,42 @@ func (c *Client) getFinancialTools(ctx context.Context, market string) (*cachedT
 		for i, t := range tools {
 			log.Printf("INFO: qveris search result %d/%d: %s (%s), %d params",
 				i+1, len(tools), t.Name, t.ToolID, len(t.Params))
+		}
+
+		// Fetch FULL schemas for the top candidates. /search returns truncated
+		// param lists (Hang Seng tools declare 0 params but actually require
+		// stockObject); /tools/by-ids gives the complete definitions.
+		topN := len(tools)
+		if topN > 3 {
+			topN = 3
+		}
+		topIDs := make([]string, 0, topN)
+		for i := 0; i < topN; i++ {
+			topIDs = append(topIDs, tools[i].ToolID)
+		}
+		if fullTools, ferr := c.GetToolsByIDs(ctx, topIDs, searchResp.SearchID); ferr == nil {
+			byID := make(map[string]searchTool)
+			for _, ft := range fullTools {
+				byID[ft.ToolID] = ft
+			}
+			for i, t := range tools {
+				if full, ok := byID[t.ToolID]; ok {
+					tools[i] = full
+					log.Printf("INFO: qveris: enriched %s with full schema (%d params, was %d)",
+						full.Name, len(full.Params), len(t.Params))
+					for _, p := range full.Params {
+						descStr := ""
+						if p.Description != nil {
+							descBytes, _ := json.Marshal(p.Description)
+							descStr = truncate(string(descBytes), 200)
+						}
+						log.Printf("INFO:   param %s (type=%s, required=%v): %s",
+							p.Name, p.Type, p.Required, descStr)
+					}
+				}
+			}
+		} else {
+			log.Printf("WARNING: qveris /tools/by-ids failed: %v (falling back to partial schemas)", ferr)
 		}
 
 		cached := &cachedTools{
