@@ -27,7 +27,7 @@ func buildCompsTools() []openaiToolDef {
 			},
 			"symbol": map[string]any{
 				"type":        "string",
-				"description": "股票代码。A股格式: 600519.SH 或 000858.SZ；港股格式: 09988.HK；美股格式: AAPL",
+				"description": "股票代码。A股格式: 600519.SH 或 000858.SZ；港股格式: 0700.HK（4位数字前补零）；美股格式: AAPL",
 			},
 		},
 		"required": []string{"market", "symbol"},
@@ -63,10 +63,10 @@ func (s *ReportService) generateCompsReport(ctx context.Context, reportID string
 4. 基于返回的数据，生成完整的 Markdown 格式 Comps 分析报告
 
 ⚠️ 关键规则：
-- 美股估值数据（市值、P/E、P/S、EV/EBITDA 等）必须通过 fetch_stock_data 工具获取，禁止使用训练数据中的过时股价
-- A股和港股：当 fetch_stock_data 返回 "api_not_supported" 时，请基于你的行业知识给出估值参考区间（注明"数据为估算值，仅供参考"）。可以引用公开的财报数据、行业报告等
-- 如果某只股票调用失败或返回"数据不可用"，在报告中如实标注，不要编造精确数据
-- 股票代码格式：A股 XXXXXX.SH/SZ，港股 XXXXX.HK，美股 TICKER
+- 所有估值数据（市值、P/E、P/S、EV/EBITDA 等）必须通过 fetch_stock_data 工具获取
+- 绝对禁止使用你训练数据中的过时股价或估值数据
+- 如果某只股票调用失败或返回"数据不可用"，在报告中如实标注，不要编造数据
+- 股票代码格式：A股 XXXXXX.SH/SZ，港股 XXXX.HK（4 位数字），美股 TICKER
 
 最终输出要求（在所有工具调用完成后输出）：
 
@@ -159,17 +159,6 @@ func (s *ReportService) handleFetchStockData(ctx context.Context, argsJSON strin
 	market := args.Market
 	if market == "" {
 		market = "美股"
-	}
-
-	if market == "A股" || market == "港股" {
-		resp := map[string]string{
-			"symbol":  args.Symbol,
-			"market":  market,
-			"status":  "api_not_supported",
-			"message": market + "实时行情API暂不可用，请基于公开财报和行业知识进行分析，标注为估算值",
-		}
-		result, _ := json.Marshal(resp)
-		return string(result), nil
 	}
 
 	data, err := s.qveris.FetchCompsDataByMarket(ctx, []string{args.Symbol}, market)

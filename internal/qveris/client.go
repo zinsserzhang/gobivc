@@ -279,6 +279,13 @@ func (c *Client) FetchCompsDataByMarket(ctx context.Context, symbols []string, m
 
 	log.Printf("INFO: qveris: fetching %s comps data for %d symbols", market, len(symbols))
 
+	// A股 / 港股 use THS iFinD tools directly (hardcoded IDs) per the official
+	// Qveris stock-copilot-pro skill. The /search-based routing found the
+	// broken Hang Seng tools, so we bypass discovery for these markets.
+	if market == "A股" || market == "港股" {
+		return c.fetchThsCompsData(ctx, symbols, market)
+	}
+
 	cache, err := c.getFinancialTools(ctx, market)
 	if err != nil {
 		return nil, err
@@ -343,6 +350,160 @@ func toYahooSymbol(symbol string) string {
 	default:
 		return symbol
 	}
+}
+
+// toThsCode formats a symbol for THS iFinD (同花顺) — the provider Qveris uses
+// for A-share and Hong Kong data. Logic mirrors the official
+// stock-copilot-pro/toThsCode: if the symbol already has an exchange suffix,
+// uppercase it and (for HK) zero-pad the numeric part to 4 digits; otherwise
+// infer by prefix (6* -> .SH, else .SZ for CN).
+func toThsCode(symbol, market string) string {
+	upper := strings.ToUpper(strings.TrimSpace(symbol))
+	if upper == "" {
+		return upper
+	}
+	if i := strings.Index(upper, "."); i > 0 {
+		code, suffix := upper[:i], upper[i+1:]
+		if suffix == "HK" {
+			stripped := strings.TrimLeft(code, "0")
+			if stripped == "" {
+				stripped = "0"
+			}
+			if len(stripped) < 4 {
+				stripped = strings.Repeat("0", 4-len(stripped)) + stripped
+			}
+			return stripped + ".HK"
+		}
+		return upper
+	}
+	switch market {
+	case "A股", "CN":
+		if strings.HasPrefix(upper, "6") {
+			return upper + ".SH"
+		}
+		return upper + ".SZ"
+	case "港股", "HK":
+		stripped := strings.TrimLeft(upper, "0")
+		if stripped == "" {
+			stripped = "0"
+		}
+		if len(stripped) < 4 {
+			stripped = strings.Repeat("0", 4-len(stripped)) + stripped
+		}
+		return stripped + ".HK"
+	}
+	return upper
+}
+
+// THS iFinD tool IDs (confirmed via Qveris open-qveris-skills/stock-copilot-pro).
+const (
+	thsQuoteToolID  = "ths_ifind.real_time_quotation.v1"
+	thsBasicsToolID = "ths_ifind.company_basics.v1"
+)
+
+// fetchThsCompsData fetches A-share / HK comps data using THS iFinD tools
+// directly. It calls the real-time quotation for price/PE/PB/marketCap, then
+// company_basics for the Chinese name, industry, and revenue/net income.
+func (c *Client) fetchThsCompsData(ctx context.Context, symbols []string, market string) ([]CompanyMetrics, error) {
+	var results []CompanyMetrics
+	for _, raw := range symbols {
+		sym := strings.TrimSpace(raw)
+		if sym == "" {
+			continue
+		}
+		code := toThsCode(sym, market)
+		log.Printf("INFO: ths_ifind: fetching %s (code=%s)", sym, code)
+
+		m := CompanyMetrics{
+			Symbol: sym, Name: sym, Source: "THS iFinD",
+			MarketCap: "-", Price: "-", PE: "-", PS: "-", PB: "-",
+			EVEBITDA: "-", Revenue: "-", NetIncome: "-",
+			GrossMargin: "-", RevenueGrowth: "-",
+		}
+
+		params := map[string]any{"codes": code}
+		if resp, err := c.ExecuteTool(ctx, thsQuoteToolID, "", params); err == nil {
+			if row := pickThsRow(c.resolveResult(ctx, resp.Result)); row != nil {
+				m.Price = extractString(row, "latest", "close", "price")
+				m.MarketCap = extractMoney(row, "mv", "totalCapital", "marketCap")
+				m.PE = extractNumber(row, "pe_ttm", "pe")
+				m.PB = extractNumber(row, "pb", "pbr_lf")
+				if n := extractString(row, "ths_corp_cn_name_stock", "ths_short_name_stock", "short_name"); n != "-" {
+					m.Name = n
+				}
+			}
+		} else {
+			log.Printf("WARNING: ths_ifind quotation failed for %s: %v", code, err)
+		}
+
+		if resp, err := c.ExecuteTool(ctx, thsBasicsToolID, "", params); err == nil {
+			if row := pickThsRow(c.resolveResult(ctx, resp.Result)); row != nil {
+				if m.Name == "-" || m.Name == sym {
+					if n := extractString(row, "ths_corp_cn_name_stock", "ths_short_name_stock", "short_name"); n != "-" {
+						m.Name = n
+					}
+				}
+				if m.Revenue == "-" {
+					m.Revenue = extractMoney(row, "ths_revenue_stock", "ths_operating_total_revenue_stock")
+				}
+				if m.NetIncome == "-" {
+					m.NetIncome = extractMoney(row, "ths_np_atoopc_stock", "ths_np_stock")
+				}
+			}
+		} else {
+			log.Printf("WARNING: ths_ifind basics failed for %s: %v", code, err)
+		}
+
+		if m.MarketCap == "-" && m.PE == "-" && m.Price == "-" && m.Revenue == "-" {
+			m.Source = "数据不可用"
+		}
+		results = append(results, m)
+		time.Sleep(200 * time.Millisecond)
+	}
+	return results, nil
+}
+
+// pickThsRow extracts the first row from a THS-shaped response:
+// { result: { data: [[{row}]] } } or { data: [[{row}]] } or { data: [{row}] }.
+func pickThsRow(raw json.RawMessage) map[string]any {
+	var wrapper map[string]any
+	if err := json.Unmarshal(raw, &wrapper); err != nil {
+		return nil
+	}
+	containers := []map[string]any{wrapper}
+	if inner, ok := wrapper["result"].(map[string]any); ok {
+		containers = append(containers, inner)
+	}
+	for _, container := range containers {
+		d, ok := container["data"]
+		if !ok {
+			continue
+		}
+		if row := firstThsRow(d); row != nil {
+			return row
+		}
+	}
+	return nil
+}
+
+func firstThsRow(v any) map[string]any {
+	arr, ok := v.([]any)
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	if inner, ok := arr[0].([]any); ok {
+		if len(inner) == 0 {
+			return nil
+		}
+		if row, ok := inner[0].(map[string]any); ok {
+			return row
+		}
+		return nil
+	}
+	if row, ok := arr[0].(map[string]any); ok {
+		return row
+	}
+	return nil
 }
 
 // buildParamsFromSchema builds parameters using the tool's declared schema.
