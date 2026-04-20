@@ -192,13 +192,6 @@ func (c *Client) getFinancialTools(ctx context.Context, market string) (*cachedT
 		return cached, nil
 	}
 
-	// Hang Seng Polysource tools (the "native" Chinese/HK market data providers
-	// Qveris surfaces for A股/港股) are broken server-side: financialRatioComparison
-	// returns 404, stockvalueanalysis returns NPE, and US Valuation Metrics
-	// rejects param shapes. Yahoo Finance's quoteSummary does support global
-	// tickers (.SS/.SZ/.HK), and Finnhub covers some HK names too. So route
-	// A股/港股 through the same Finnhub/Yahoo tools we use for 美股 — we just
-	// convert the ticker format in buildParamsFromSchema.
 	queries := []string{
 		"US stock financial data P/E ratio market cap",
 		"stock fundamentals valuation metrics",
