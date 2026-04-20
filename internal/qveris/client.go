@@ -18,14 +18,14 @@ type Client struct {
 	BaseURL string
 	HTTP    *http.Client
 
-	// Cached tool IDs per query to avoid redundant searches
-	toolCache map[string]cachedTool
+	toolCache map[string]*cachedTools
 }
 
-type cachedTool struct {
-	tool     searchTool
-	searchID string
-	expires  time.Time
+type cachedTools struct {
+	tools     []searchTool
+	searchID  string
+	preferred int // index of known-working tool, -1 = none verified
+	expires   time.Time
 }
 
 // NewClient creates a new Qveris API client.
@@ -38,7 +38,7 @@ func NewClient(apiKey string) *Client {
 		APIKey:    apiKey,
 		BaseURL:   baseURL,
 		HTTP:      &http.Client{Timeout: 60 * time.Second},
-		toolCache: make(map[string]cachedTool),
+		toolCache: make(map[string]*cachedTools),
 	}
 }
 
@@ -159,14 +159,13 @@ type CompanyMetrics struct {
 	Source        string `json:"source"` // 数据源标识
 }
 
-// getFinancialTool searches for a suitable financial data tool, caches the result.
-func (c *Client) getFinancialTool(ctx context.Context, market string) (*searchTool, string, error) {
+// getFinancialTools searches for candidate financial data tools, caches them.
+func (c *Client) getFinancialTools(ctx context.Context, market string) (*cachedTools, error) {
 	cacheKey := "financial-" + market
 	if cached, ok := c.toolCache[cacheKey]; ok && time.Now().Before(cached.expires) {
-		return &cached.tool, cached.searchID, nil
+		return cached, nil
 	}
 
-	// Market-specific search queries
 	var queries []string
 	switch market {
 	case "A股":
@@ -181,7 +180,7 @@ func (c *Client) getFinancialTool(ctx context.Context, market string) (*searchTo
 			"HK stock market fundamentals valuation",
 			"stock quote fundamentals financial ratios",
 		}
-	default: // 美股
+	default:
 		queries = []string{
 			"US stock financial data P/E ratio market cap",
 			"stock fundamentals valuation metrics",
@@ -200,24 +199,22 @@ func (c *Client) getFinancialTool(ctx context.Context, market string) (*searchTo
 			continue
 		}
 
-		tool := tools[0]
-		log.Printf("INFO: qveris selected tool: %s (%s) for market %s, %d params",
-			tool.Name, tool.ToolID, market, len(tool.Params))
-		for _, p := range tool.Params {
-			if p.Required {
-				log.Printf("INFO:   required param: %s (%s)", p.Name, p.Type)
-			}
+		for i, t := range tools {
+			log.Printf("INFO: qveris search result %d/%d: %s (%s), %d params",
+				i+1, len(tools), t.Name, t.ToolID, len(t.Params))
 		}
 
-		c.toolCache[cacheKey] = cachedTool{
-			tool:     tool,
-			searchID: searchResp.SearchID,
-			expires:  time.Now().Add(10 * time.Minute),
+		cached := &cachedTools{
+			tools:     tools,
+			searchID:  searchResp.SearchID,
+			preferred: -1,
+			expires:   time.Now().Add(10 * time.Minute),
 		}
-		return &tool, searchResp.SearchID, nil
+		c.toolCache[cacheKey] = cached
+		return cached, nil
 	}
 
-	return nil, "", fmt.Errorf("qveris: no financial tool found for market %s", market)
+	return nil, fmt.Errorf("qveris: no financial tools found for market %s", market)
 }
 
 // FetchCompsData fetches financial metrics for a list of company symbols.
@@ -236,7 +233,7 @@ func (c *Client) FetchCompsDataByMarket(ctx context.Context, symbols []string, m
 
 	log.Printf("INFO: qveris: fetching %s comps data for %d symbols", market, len(symbols))
 
-	tool, searchID, err := c.getFinancialTool(ctx, market)
+	cache, err := c.getFinancialTools(ctx, market)
 	if err != nil {
 		return nil, err
 	}
@@ -248,7 +245,7 @@ func (c *Client) FetchCompsDataByMarket(ctx context.Context, symbols []string, m
 			continue
 		}
 
-		metrics, err := c.fetchSingleCompany(ctx, tool, searchID, symbol)
+		metrics, err := c.fetchSingleCompany(ctx, cache, symbol)
 		if err != nil {
 			log.Printf("WARNING: qveris fetch '%s' failed: %v", symbol, err)
 			results = append(results, CompanyMetrics{
@@ -266,10 +263,15 @@ func (c *Client) FetchCompsDataByMarket(ctx context.Context, symbols []string, m
 	return results, nil
 }
 
-// parseStockCode splits "600519.SH" into ("600519", "SH") or "09988.HK" into ("09988", "HK")
+// parseStockCode splits "600519.SH" into ("600519", "SH") or "9988.HK" into ("09988", "HK").
+// HK codes are zero-padded to 5 digits per Hang Seng convention.
 func parseStockCode(symbol string) (code, market string) {
 	if i := strings.Index(symbol, "."); i > 0 {
-		return symbol[:i], symbol[i+1:]
+		code, market = symbol[:i], symbol[i+1:]
+		if market == "HK" && len(code) < 5 {
+			code = strings.Repeat("0", 5-len(code)) + code
+		}
+		return code, market
 	}
 	return symbol, ""
 }
@@ -360,47 +362,102 @@ func contains(s string, subs []string) bool {
 	return false
 }
 
-func (c *Client) fetchSingleCompany(ctx context.Context, tool *searchTool, searchID, symbol string) (*CompanyMetrics, error) {
+func (c *Client) fetchSingleCompany(ctx context.Context, cache *cachedTools, symbol string) (*CompanyMetrics, error) {
 	cleanSymbol := strings.TrimSpace(symbol)
-	params := buildParamsFromSchema(tool, cleanSymbol)
 
-	log.Printf("INFO: qveris execute %s for '%s' with params: %v", tool.ToolID, cleanSymbol, params)
+	// Build tool order: preferred first, then others (max 3 attempts).
+	order := make([]int, 0, len(cache.tools))
+	if cache.preferred >= 0 {
+		order = append(order, cache.preferred)
+	}
+	for i := range cache.tools {
+		if i != cache.preferred {
+			order = append(order, i)
+		}
+	}
+	if len(order) > 3 {
+		order = order[:3]
+	}
 
-	resp, err := c.ExecuteTool(ctx, tool.ToolID, searchID, params)
+	var lastErr error
+	for _, idx := range order {
+		tool := &cache.tools[idx]
+		params := buildParamsFromSchema(tool, cleanSymbol)
+
+		log.Printf("INFO: qveris trying tool %d/%d %s (%s) for '%s' with params: %v",
+			idx+1, len(cache.tools), tool.Name, tool.ToolID, cleanSymbol, params)
+
+		resp, err := c.ExecuteTool(ctx, tool.ToolID, cache.searchID, params)
+		if err != nil {
+			log.Printf("WARNING: qveris tool %s failed for %s: %v, trying next", tool.Name, cleanSymbol, err)
+			lastErr = err
+			continue
+		}
+
+		cache.preferred = idx
+
+		resultData := c.resolveResult(ctx, resp.Result)
+		rawData := flattenResult(resultData)
+
+		metrics := &CompanyMetrics{
+			Symbol:        symbol,
+			Name:          extractString(rawData, "name", "company_name", "shortName", "longName", "companyName"),
+			MarketCap:     extractMoney(rawData, "market_cap", "marketCap", "mktCap", "market_capitalization", "marketCapitalization"),
+			Price:         extractString(rawData, "price", "current_price", "currentPrice", "regularMarketPrice", "last_price", "latestPrice"),
+			PE:            extractNumber(rawData, "pe_ratio", "pe", "trailingPE", "peRatio", "price_earnings_ratio", "peTTM", "peBasicExclExtraTTM", "peNormalizedAnnual", "peAnnual"),
+			PS:            extractNumber(rawData, "ps_ratio", "ps", "priceToSales", "psRatio", "price_to_sales", "psTTM", "psAnnual"),
+			PB:            extractNumber(rawData, "pb_ratio", "pb", "priceToBook", "pbRatio", "price_to_book", "pbQuarterly", "pbAnnual"),
+			EVEBITDA:      extractNumber(rawData, "ev_ebitda", "evEbitda", "enterpriseToEbitda", "ev_to_ebitda"),
+			Revenue:       extractMoney(rawData, "revenue", "totalRevenue", "total_revenue", "revenueTtm", "revenueTTM"),
+			NetIncome:     extractMoney(rawData, "net_income", "netIncome", "net_profit", "netIncomeTtm"),
+			GrossMargin:   extractPercent(rawData, "gross_margin", "grossMargin", "grossMargins", "gross_profit_margin", "grossMarginTTM", "grossMarginAnnual"),
+			RevenueGrowth: extractPercent(rawData, "revenue_growth", "revenueGrowth", "revenue_growth_yoy", "revenueGrowthTTMYoy", "revenueGrowth5Y", "revenueGrowthQuarterlyYoy"),
+			Source:        "Qveris.ai",
+		}
+
+		if metrics.Name == "-" || metrics.Name == "" {
+			metrics.Name = symbol
+		}
+
+		if metrics.MarketCap == "-" && metrics.PE == "-" && metrics.Price == "-" && metrics.Revenue == "-" {
+			log.Printf("WARNING: qveris returned no usable data for %s, raw: %s", symbol, truncate(string(resp.Result), 300))
+			metrics.Source = "数据不可用"
+		}
+
+		return metrics, nil
+	}
+
+	return nil, lastErr
+}
+
+// resolveResult downloads full content if the Qveris response was truncated.
+func (c *Client) resolveResult(ctx context.Context, result json.RawMessage) json.RawMessage {
+	var wrapper map[string]any
+	if err := json.Unmarshal(result, &wrapper); err != nil {
+		return result
+	}
+	url, _ := wrapper["full_content_file_url"].(string)
+	if url == "" {
+		return result
+	}
+
+	log.Printf("INFO: qveris: response truncated, downloading full content")
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
-		return nil, err
+		return result
 	}
-
-	// Flatten result: try to parse as object, or unwrap nested data
-	rawData := flattenResult(resp.Result)
-
-	metrics := &CompanyMetrics{
-		Symbol:        symbol,
-		Name:          extractString(rawData, "name", "company_name", "shortName", "longName", "companyName"),
-		MarketCap:     extractMoney(rawData, "market_cap", "marketCap", "mktCap", "market_capitalization", "marketCapitalization"),
-		Price:         extractString(rawData, "price", "current_price", "currentPrice", "regularMarketPrice", "last_price"),
-		PE:            extractNumber(rawData, "pe_ratio", "pe", "trailingPE", "peRatio", "price_earnings_ratio", "peTTM", "peBasicExclExtraTTM", "peNormalizedAnnual", "peAnnual"),
-		PS:            extractNumber(rawData, "ps_ratio", "ps", "priceToSales", "psRatio", "price_to_sales", "psTTM", "psAnnual"),
-		PB:            extractNumber(rawData, "pb_ratio", "pb", "priceToBook", "pbRatio", "price_to_book", "pbQuarterly", "pbAnnual"),
-		EVEBITDA:      extractNumber(rawData, "ev_ebitda", "evEbitda", "enterpriseToEbitda", "ev_to_ebitda", "currentEv/freeCashFlowTTM"),
-		Revenue:       extractMoney(rawData, "revenue", "totalRevenue", "total_revenue", "revenueTtm", "revenueTTM", "revenuePerShareTTM"),
-		NetIncome:     extractMoney(rawData, "net_income", "netIncome", "net_profit", "netIncomeTtm", "netIncomeEmployeeAnnual", "netIncomeCommonStockholdersAnnual"),
-		GrossMargin:   extractPercent(rawData, "gross_margin", "grossMargin", "grossMargins", "gross_profit_margin", "grossMarginTTM", "grossMarginAnnual"),
-		RevenueGrowth: extractPercent(rawData, "revenue_growth", "revenueGrowth", "revenue_growth_yoy", "revenueGrowthTTMYoy", "revenueGrowth5Y", "revenueGrowthQuarterlyYoy"),
-		Source:        "Qveris.ai",
+	resp, err := c.HTTP.Do(req)
+	if err != nil {
+		log.Printf("WARNING: qveris: failed to download full content: %v", err)
+		return result
 	}
-
-	if metrics.Name == "-" || metrics.Name == "" {
-		metrics.Name = symbol
+	defer resp.Body.Close()
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return result
 	}
-
-	// Sanity check: if we didn't get ANY useful data, mark as failed
-	if metrics.MarketCap == "-" && metrics.PE == "-" && metrics.Price == "-" && metrics.Revenue == "-" {
-		log.Printf("WARNING: qveris returned no usable data for %s, raw: %s", symbol, truncate(string(resp.Result), 300))
-		metrics.Source = "数据不可用"
-	}
-
-	return metrics, nil
+	log.Printf("INFO: qveris: downloaded full content (%d bytes)", len(data))
+	return json.RawMessage(data)
 }
 
 // flattenResult tries to unwrap common nested response shapes.
