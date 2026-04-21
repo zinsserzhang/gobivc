@@ -30,6 +30,12 @@ type Config struct {
 	// Feishu integration
 	FeishuFolderToken string
 
+	// Feishu OAuth (web login)
+	FeishuAppID         string
+	FeishuAppSecret     string
+	FeishuRedirectURL   string
+	FeishuWhitelistFile string
+
 	// Qveris.ai (financial data)
 	QverisAPIKey string
 }
@@ -66,14 +72,22 @@ func Load() *Config {
 	}
 
 	cfg.FeishuFolderToken = os.Getenv("FEISHU_FOLDER_TOKEN")
+	cfg.FeishuAppID = os.Getenv("FEISHU_APP_ID")
+	cfg.FeishuAppSecret = os.Getenv("FEISHU_APP_SECRET")
+	cfg.FeishuRedirectURL = os.Getenv("FEISHU_REDIRECT_URL")
+	cfg.FeishuWhitelistFile = getEnv("FEISHU_WHITELIST_FILE", "./data/whitelist.json")
 	cfg.QverisAPIKey = os.Getenv("QVERIS_API_KEY")
+
+	if cfg.FeishuAppID == "" || cfg.FeishuAppSecret == "" {
+		log.Println("WARNING: FEISHU_APP_ID / FEISHU_APP_SECRET not set — web login disabled.")
+	} else {
+		log.Printf("INFO: Feishu web login enabled (app_id=%s, whitelist=%s)", cfg.FeishuAppID, cfg.FeishuWhitelistFile)
+	}
 
 	log.Printf("INFO: AI Provider=%s, Model=%s, BaseURL=%s", cfg.AIProvider, cfg.AIModel, cfg.AIBaseURL)
 
-	if cfg.APIToken == "" {
-		log.Println("WARNING: API_TOKEN is not set. API is publicly accessible.")
-	} else {
-		log.Println("INFO: API authentication enabled")
+	if cfg.APIToken != "" {
+		log.Println("INFO: Service-account API token enabled (for backend-to-backend calls)")
 	}
 
 	return cfg

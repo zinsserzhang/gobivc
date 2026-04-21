@@ -3,15 +3,49 @@ package api
 import (
 	"net/http"
 	"strings"
+
+	"github.com/zinsserzhang/gobivc/internal/auth"
 )
 
 // NewRouter creates the HTTP router (mux) for the application.
-func NewRouter(handler *Handler) http.Handler {
+// authHandler may be nil if Feishu OAuth is not configured — in that case
+// the /api/auth/* endpoints respond with 503.
+func NewRouter(handler *Handler, authHandler *auth.HTTPHandler) http.Handler {
 	mux := http.NewServeMux()
 
 	// Health check (unauthenticated)
 	mux.HandleFunc("/health", handler.Health)
 	mux.HandleFunc("/api/health", handler.Health)
+
+	// Auth routes
+	mux.HandleFunc("/api/auth/login-url", func(w http.ResponseWriter, r *http.Request) {
+		if authHandler == nil {
+			http.Error(w, "auth not configured", http.StatusServiceUnavailable)
+			return
+		}
+		authHandler.LoginURL(w, r)
+	})
+	mux.HandleFunc("/api/auth/callback", func(w http.ResponseWriter, r *http.Request) {
+		if authHandler == nil {
+			http.Error(w, "auth not configured", http.StatusServiceUnavailable)
+			return
+		}
+		authHandler.Callback(w, r)
+	})
+	mux.HandleFunc("/api/auth/me", func(w http.ResponseWriter, r *http.Request) {
+		if authHandler == nil {
+			http.Error(w, "auth not configured", http.StatusServiceUnavailable)
+			return
+		}
+		authHandler.Me(w, r)
+	})
+	mux.HandleFunc("/api/auth/logout", func(w http.ResponseWriter, r *http.Request) {
+		if authHandler == nil {
+			http.Error(w, "auth not configured", http.StatusServiceUnavailable)
+			return
+		}
+		authHandler.Logout(w, r)
+	})
 
 	// Feishu contacts search
 	mux.HandleFunc("/api/contacts", func(w http.ResponseWriter, r *http.Request) {
@@ -64,6 +98,11 @@ func NewRouter(handler *Handler) http.Handler {
 
 	// Static files
 	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("web/static"))))
+
+	// Login page (unauthenticated)
+	mux.HandleFunc("/login", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, "web/templates/login.html")
+	})
 
 	// Serve index.html for the root and non-API/non-static paths
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {

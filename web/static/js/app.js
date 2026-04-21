@@ -1,7 +1,6 @@
 // ===== GobiVC Frontend Application =====
 
 const API_BASE = '/api';
-const TOKEN_KEY = 'gobivc_api_token';
 
 let currentReportId = null;
 let pollTimer = null;
@@ -11,18 +10,62 @@ let eventSource = null;
 let streamContent = '';
 let searchTimer = null;
 let allReports = []; // cached report list for client-side filtering
+let currentUser = null;
 
-// ===== Token Management =====
-function getApiToken() { return localStorage.getItem(TOKEN_KEY) || ''; }
-function setApiToken(token) { token ? localStorage.setItem(TOKEN_KEY, token) : localStorage.removeItem(TOKEN_KEY); }
-
-function promptForToken() {
-    const current = getApiToken();
-    const token = prompt('请输入 API Token（留空表示未启用鉴权）：', current);
-    if (token !== null) {
-        setApiToken(token.trim());
-        toast('Token 已保存', 'success');
+// ===== Auth / User =====
+async function loadCurrentUser() {
+    try {
+        const resp = await fetch('/api/auth/me', { credentials: 'same-origin' });
+        if (resp.status === 401) {
+            redirectToLogin();
+            return null;
+        }
+        if (!resp.ok) return null;
+        currentUser = await resp.json();
+        renderUserMenu(currentUser);
+        return currentUser;
+    } catch (e) {
+        return null;
     }
+}
+
+function redirectToLogin() {
+    const next = window.location.pathname + window.location.search;
+    window.location.href = '/login?next=' + encodeURIComponent(next);
+}
+
+function renderUserMenu(user) {
+    const wrap = document.getElementById('user-menu');
+    if (!wrap || !user) return;
+    wrap.style.display = '';
+    const name = user.name || 'User';
+    const initial = (name || '?').charAt(0).toUpperCase();
+    const avatar = document.getElementById('user-avatar');
+    if (user.avatar_url) {
+        avatar.innerHTML = '<img src="' + escapeHtml(user.avatar_url) + '" alt="">';
+    } else {
+        avatar.textContent = initial;
+    }
+    document.getElementById('user-name').textContent = name;
+    document.getElementById('user-menu-name').textContent = name;
+    document.getElementById('user-menu-email').textContent = user.email || user.mobile || ('open_id ' + (user.open_id || '').slice(0, 10) + '...');
+}
+
+function toggleUserMenu() {
+    const wrap = document.getElementById('user-menu');
+    if (wrap) wrap.classList.toggle('open');
+}
+
+document.addEventListener('click', (e) => {
+    const wrap = document.getElementById('user-menu');
+    if (wrap && !wrap.contains(e.target)) wrap.classList.remove('open');
+});
+
+async function logout() {
+    try {
+        await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' });
+    } catch (e) { /* ignore */ }
+    window.location.href = '/login';
 }
 
 // ===== Toast Notifications =====
@@ -146,12 +189,13 @@ function filterByType(type) {
 // ===== API =====
 async function apiCall(url, options = {}) {
     const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
-    const token = getApiToken();
-    if (token) headers['Authorization'] = 'Bearer ' + token;
-    const resp = await fetch(API_BASE + url, { ...options, headers });
+    const resp = await fetch(API_BASE + url, { ...options, headers, credentials: 'same-origin' });
+    if (resp.status === 401) {
+        redirectToLogin();
+        throw new Error('未登录');
+    }
     const data = await resp.json();
     if (!resp.ok) {
-        if (resp.status === 401) throw new Error('未授权：请配置正确的 API Token');
         throw new Error(data.error || '请求失败');
     }
     return data;
@@ -193,6 +237,7 @@ function setStatusDot(id, on) {
     if (el) el.classList.toggle('on', !!on);
 }
 checkStatus();
+loadCurrentUser();
 
 // ===== Assignees (Feishu Contacts) =====
 let selectedAssignees = [];
@@ -329,8 +374,7 @@ function uploadFiles(files) {
 
     const xhr = new XMLHttpRequest();
     xhr.open('POST', '/api/uploads');
-    const token = getApiToken();
-    if (token) xhr.setRequestHeader('Authorization', 'Bearer ' + token);
+    xhr.withCredentials = true;
 
     xhr.upload.addEventListener('progress', (e) => {
         if (e.lengthComputable) {
@@ -532,10 +576,9 @@ function startStream(reportId) {
     stopStream();
     streamContent = '';
 
-    const token = getApiToken();
-    let streamUrl = API_BASE + '/reports/' + reportId + '/stream';
-    if (token) streamUrl += '?token=' + encodeURIComponent(token);
-    eventSource = new EventSource(streamUrl);
+    const streamUrl = API_BASE + '/reports/' + reportId + '/stream';
+    // EventSource on same-origin automatically sends the session cookie.
+    eventSource = new EventSource(streamUrl, { withCredentials: true });
 
     eventSource.onmessage = function(event) {
         let data;

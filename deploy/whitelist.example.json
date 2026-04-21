@@ -1,0 +1,9 @@
+{
+  "_comment": "Copy this file to /opt/gobivc/data/whitelist.json on the server and edit in-place. Any one identifier matching grants login. Edits are hot-reloaded — no restart required.",
+  "emails": [
+    "you@example.com"
+  ],
+  "open_ids": [],
+  "union_ids": [],
+  "mobiles": []
+}

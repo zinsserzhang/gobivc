@@ -62,10 +62,6 @@
                         <span class="status-label">Qveris</span>
                     </div>
                 </div>
-                <button class="nav-btn sidebar-token-btn" onclick="promptForToken()">
-                    <span class="nav-icon">&#9881;</span>
-                    <span class="nav-text">API Token</span>
-                </button>
             </div>
         </aside>
 
@@ -87,9 +83,20 @@
                         <span class="nav-icon">&#128196;</span>
                         <span>全部报告</span>
                     </button>
-                    <button class="topbar-btn" type="button" onclick="promptForToken()" title="API Token">
-                        <span class="nav-icon">&#9881;</span>
-                    </button>
+                    <div class="user-menu" id="user-menu" style="display:none">
+                        <button class="user-menu-btn" type="button" onclick="toggleUserMenu()" title="账户">
+                            <span class="user-avatar" id="user-avatar"></span>
+                            <span class="user-name" id="user-name">--</span>
+                            <span class="user-caret">&#9662;</span>
+                        </button>
+                        <div class="user-menu-dropdown" id="user-menu-dropdown">
+                            <div class="user-menu-header">
+                                <div class="user-menu-name" id="user-menu-name">--</div>
+                                <div class="user-menu-email" id="user-menu-email">--</div>
+                            </div>
+                            <button type="button" class="user-menu-item" onclick="logout()">退出登录</button>
+                        </div>
+                    </div>
                 </div>
             </header>
 

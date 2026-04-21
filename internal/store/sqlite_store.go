@@ -164,6 +164,12 @@ func (s *SQLiteStore) Close() error {
 	return s.db.Close()
 }
 
+// DB exposes the underlying *sql.DB so other packages (e.g. auth) can share
+// the same database file without opening a second handle.
+func (s *SQLiteStore) DB() *sql.DB {
+	return s.db
+}
+
 // scanner interface shared by sql.Row and sql.Rows
 type scanner interface {
 	Scan(dest ...any) error
