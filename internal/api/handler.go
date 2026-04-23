@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/zinsserzhang/gobivc/internal/auth"
 	"github.com/zinsserzhang/gobivc/internal/feishu"
 	"github.com/zinsserzhang/gobivc/internal/model"
 	"github.com/zinsserzhang/gobivc/internal/service"
@@ -16,32 +17,43 @@ import (
 type Handler struct {
 	svc    *service.ReportService
 	feishu *feishu.Client
+	oauth  *auth.OAuthClient
 }
 
 // NewHandler creates a new Handler.
-func NewHandler(svc *service.ReportService, feishuClient *feishu.Client) *Handler {
-	return &Handler{svc: svc, feishu: feishuClient}
+func NewHandler(svc *service.ReportService, feishuClient *feishu.Client, oauthClient *auth.OAuthClient) *Handler {
+	return &Handler{svc: svc, feishu: feishuClient, oauth: oauthClient}
 }
 
 // SearchContacts handles GET /api/contacts?q=keyword
 func (h *Handler) SearchContacts(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query().Get("q")
 	if query == "" {
-		jsonResponse(w, http.StatusOK, []model.Assignee{})
+		jsonResponse(w, http.StatusOK, []any{})
 		return
 	}
 
+	// Prefer direct Feishu API via OAuth app_access_token.
+	if h.oauth != nil && h.oauth.IsConfigured() {
+		contacts, err := h.oauth.SearchContacts(r.Context(), query)
+		if err != nil {
+			errorResponse(w, http.StatusInternalServerError, "搜索联系人失败: "+err.Error())
+			return
+		}
+		jsonResponse(w, http.StatusOK, contacts)
+		return
+	}
+
+	// Fallback to lark-cli.
 	if h.feishu == nil || !h.feishu.IsConfigured() {
 		errorResponse(w, http.StatusServiceUnavailable, "飞书未连接，无法搜索联系人")
 		return
 	}
-
 	contacts, err := h.feishu.SearchContacts(r.Context(), query)
 	if err != nil {
 		errorResponse(w, http.StatusInternalServerError, "搜索联系人失败: "+err.Error())
 		return
 	}
-
 	jsonResponse(w, http.StatusOK, contacts)
 }
 

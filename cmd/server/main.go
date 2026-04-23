@@ -89,7 +89,7 @@ func main() {
 	reportService := service.NewReportService(sqliteStore, generator, feishuClient, qverisClient)
 
 	// Initialize API handler and router
-	handler := api.NewHandler(reportService, feishuClient)
+	handler := api.NewHandler(reportService, feishuClient, oauthClient)
 	router := api.NewRouter(handler, authHTTP)
 
 	middlewares := []api.Middleware{
