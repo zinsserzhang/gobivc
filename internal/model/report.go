@@ -73,6 +73,8 @@ type ProjectInfo struct {
 	CoreTeam      string   `json:"core_team"`      // 核心团队背景
 	InvestThesis  string   `json:"invest_thesis"`  // 核心投资逻辑
 	DDFocus       []string `json:"dd_focus"`        // 尽调重点关注领域
+	DealType      string   `json:"deal_type"`       // 交易类型
+	KeyConcerns   string   `json:"key_concerns"`    // 已知关注/风险点
 }
 
 // FinancialInfo holds structured inputs for financial analysis.

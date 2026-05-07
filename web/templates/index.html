@@ -140,7 +140,7 @@
                         <span class="form-hint" id="direction-hint">可选，指定报告的重点分析方向</span>
                     </div>
 
-                    <!-- Pre-DD: minimal - only brief industry (optional) -->
+                    <!-- Pre-DD: project context + DD scope -->
                     <div id="fields-predd" class="structured-fields" style="display:none">
                         <div class="fields-section-title">项目简述（可选）</div>
                         <div class="fields-grid">
@@ -159,8 +159,19 @@
                                     <option>B轮</option><option>C轮</option><option>D轮</option><option>Pre-IPO</option>
                                 </select>
                             </div>
+                            <div class="form-group"><label>交易类型</label>
+                                <select id="predd-deal-type"><option value="">AI 自动识别</option>
+                                    <option>少数股权投资</option><option>成长型股权</option><option>控股收购</option>
+                                    <option>增值并购(Add-on)</option><option>重组/Recap</option><option>分拆/Carve-out</option>
+                                </select>
+                            </div>
                         </div>
-                        <span class="form-hint">上传 BP 后 AI 会自动提取项目信息并生成尽调清单和核心问题。以上字段均为可选，仅用于辅助识别。</span>
+                        <div class="form-group" style="margin-top:12px">
+                            <label>已知关注点 / 风险</label>
+                            <input type="text" id="predd-concerns" autocomplete="off"
+                                   placeholder="例如：客户集中度高、合规风险、创始人依赖...">
+                            <span class="form-hint">可选，填写后 AI 会在尽调清单中优先关注这些领域</span>
+                        </div>
                     </div>
 
                     <!-- Memo: full project info + deal/investment details -->

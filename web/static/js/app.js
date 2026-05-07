@@ -130,7 +130,7 @@ function switchView(view) {
 // Open create view for a specific report type
 function openCreate(type) {
     const cfg = {
-        predd:     { title: 'Pre-DD 尽调', desc: '上传 BP，AI 自动分析生成尽调清单与核心问题关注', topicLabel: '项目名称', topicPh: '例如：XX科技', dirLabel: '关注方向（可选）', dirPh: '例如：重点关注技术壁垒...', dirHint: '可选，指定重点关注领域', showFiles: true, showSuggestions: false },
+        predd:     { title: 'Pre-DD 尽调', desc: '上传 BP，AI 生成 7 大工作流尽调清单、状态追踪表、红旗汇总与核心问题', topicLabel: '项目名称', topicPh: '例如：XX科技', dirLabel: '尽调侧重（可选）', dirPh: '例如：重点关注财务质量和客户集中度', dirHint: '可选，指定尽调重点方向', showFiles: true, showSuggestions: false },
         memo:      { title: '立项报告', desc: '基于项目材料与交易条款生成投委会立项报告', topicLabel: '项目名称', topicPh: '例如：XX科技 A轮融资项目', dirLabel: '报告侧重（可选）', dirPh: '例如：重点分析商业模式和退出路径', dirHint: '可选', showFiles: true, showSuggestions: false },
         financial: { title: '财务分析', desc: '上传财务报表，AI 分析财务指标并可视化呈现', topicLabel: '公司名称', topicPh: '例如：XX科技有限公司', dirLabel: '分析侧重', dirPh: '例如：重点分析盈利能力和现金流', dirHint: '可选', showFiles: true, showSuggestions: false },
         comps:     { title: '二级市场 Comps 分析', desc: '从赛道出发，自动匹配 A股/港股/美股可比公司并拉取实时估值数据', topicLabel: '项目/公司名称', topicPh: '例如：XX科技', dirLabel: '估值侧重（可选）', dirPh: '例如：更关注成长性溢价', dirHint: '可选', showFiles: true, showSuggestions: false },
@@ -163,9 +163,7 @@ function openCreate(type) {
     document.getElementById('fields-financial').style.display = type === 'financial' ? 'block' : 'none';
     document.getElementById('fields-industry').style.display = type === 'industry' ? 'block' : 'none';
 
-    // Pre-DD hides direction/custom_notes/depth since it should be minimal
-    const showMinimal = type === 'predd';
-    document.getElementById('direction-group').style.display = showMinimal ? 'none' : 'block';
+    document.getElementById('direction-group').style.display = 'block';
     // Keep depth for all, but Pre-DD auto-defaults to standard
 
     // Highlight sidebar
@@ -483,10 +481,11 @@ async function handleSubmit(event) {
         };
 
         if (reportType === 'predd') {
-            // Minimal Pre-DD: only optional industry + round
             payload.project_info = {
                 industry: val('predd-industry'),
                 round: val('predd-round'),
+                deal_type: val('predd-deal-type'),
+                key_concerns: val('predd-concerns'),
             };
         } else if (reportType === 'memo') {
             // Memo: full project + deal info
