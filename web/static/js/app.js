@@ -131,7 +131,7 @@ function switchView(view) {
 function openCreate(type) {
     const cfg = {
         predd:     { title: 'Pre-DD 尽调', desc: '上传 BP，AI 生成 7 大工作流尽调清单、状态追踪表、红旗汇总与核心问题', topicLabel: '项目名称', topicPh: '例如：XX科技', dirLabel: '尽调侧重（可选）', dirPh: '例如：重点关注财务质量和客户集中度', dirHint: '可选，指定尽调重点方向', showFiles: true, showSuggestions: false },
-        memo:      { title: '立项报告', desc: '基于项目材料与交易条款生成投委会立项报告', topicLabel: '项目名称', topicPh: '例如：XX科技 A轮融资项目', dirLabel: '报告侧重（可选）', dirPh: '例如：重点分析商业模式和退出路径', dirHint: '可选', showFiles: true, showSuggestions: false },
+        memo:      { title: 'IC 备忘录', desc: '生成标准 9 段式投委会备忘录 — 含执行摘要、财务分析、回报测算、风险矩阵', topicLabel: '项目名称', topicPh: '例如：XX科技 A轮融资项目', dirLabel: '报告侧重（可选）', dirPh: '例如：重点分析回报敏感性和退出路径', dirHint: '可选', showFiles: true, showSuggestions: false },
         financial: { title: '财务分析', desc: '上传财务报表，AI 分析财务指标并可视化呈现', topicLabel: '公司名称', topicPh: '例如：XX科技有限公司', dirLabel: '分析侧重', dirPh: '例如：重点分析盈利能力和现金流', dirHint: '可选', showFiles: true, showSuggestions: false },
         dealscreen:{ title: '项目快筛', desc: '上传 CIM/Teaser/BP，AI 快速输出 Pass / 进入尽调 / 否决 判断 + 一页纸备忘', topicLabel: '项目名称', topicPh: '例如：XX科技 A轮', dirLabel: '关注点（可选）', dirPh: '例如：重点看估值合理性和退出路径', dirHint: '可选', showFiles: true, showSuggestions: false },
         comps:     { title: '二级市场 Comps 分析', desc: '从赛道出发，自动匹配 A股/港股/美股可比公司并拉取实时估值数据', topicLabel: '项目/公司名称', topicPh: '例如：XX科技', dirLabel: '估值侧重（可选）', dirPh: '例如：更关注成长性溢价', dirHint: '可选', showFiles: true, showSuggestions: false },

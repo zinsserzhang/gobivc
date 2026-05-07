@@ -284,7 +284,7 @@ func buildTitle(config model.ReportConfig) string {
 	case model.TypePreDD:
 		typeName = "Pre-DD 尽调"
 	case model.TypeInvestmentMemo:
-		typeName = "立项报告"
+		typeName = "IC 备忘录"
 	case model.TypeFinancial:
 		typeName = "财务分析"
 	case model.TypeComps:
