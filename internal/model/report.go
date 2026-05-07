@@ -11,6 +11,7 @@ const (
 	TypeFinancial      ReportType = "financial"
 	TypeComps          ReportType = "comps"     // 二级市场 Comps 分析
 	TypeIndustryReport ReportType = "industry"
+	TypeDealScreen     ReportType = "dealscreen" // 项目快筛
 )
 
 // ReportDepth defines the analysis depth.
@@ -149,11 +150,11 @@ func (r *CreateReportRequest) Validate() string {
 		return "topic is required"
 	}
 	switch r.ReportType {
-	case TypePreDD, TypeInvestmentMemo, TypeFinancial, TypeComps, TypeIndustryReport:
+	case TypePreDD, TypeInvestmentMemo, TypeFinancial, TypeComps, TypeIndustryReport, TypeDealScreen:
 	case "":
 		r.ReportType = TypeIndustryReport
 	default:
-		return "report_type must be one of: predd, memo, financial, industry"
+		return "report_type must be one of: predd, memo, financial, industry, dealscreen"
 	}
 	switch r.Depth {
 	case DepthBrief, DepthStandard, DepthDeep:

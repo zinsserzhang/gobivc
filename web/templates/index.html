@@ -36,6 +36,10 @@
                     <span class="nav-icon">&#128185;</span>
                     <span class="nav-text">二级市场 Comps</span>
                 </button>
+                <button class="nav-btn" data-view="create-dealscreen" onclick="openCreate('dealscreen')">
+                    <span class="nav-icon">&#9889;</span>
+                    <span class="nav-text">项目快筛</span>
+                </button>
                 <button class="nav-btn" data-view="create-industry" onclick="openCreate('industry')">
                     <span class="nav-icon">&#128202;</span>
                     <span class="nav-text">行业研究报告</span>
@@ -213,6 +217,39 @@
                         </div>
                         <div class="form-group"><label>跟投方</label><input type="text" id="memo-co" placeholder="跟投机构，多个用逗号分隔"></div>
                         <div class="form-group"><label>核心投资逻辑 <span class="required">*</span></label><textarea id="memo-thesis" rows="3" placeholder="3-5 句话阐述为什么要投这个项目：赛道机会、壁垒、团队、回报预期等"></textarea></div>
+                    </div>
+
+                    <!-- Deal Screening: quick triage -->
+                    <div id="fields-dealscreen" class="structured-fields" style="display:none">
+                        <div class="fields-section-title">项目信息（可选，上传 CIM/Teaser 效果更好）</div>
+                        <div class="fields-grid">
+                            <div class="form-group"><label>所属行业</label>
+                                <select id="ds-industry"><option value="">AI 自动识别</option>
+                                    <option>人工智能</option><option>企业服务/SaaS</option><option>半导体/芯片</option>
+                                    <option>新能源/清洁技术</option><option>生物医药/医疗健康</option><option>智能制造/机器人</option>
+                                    <option>金融科技</option><option>消费/新零售</option><option>Web3/区块链</option>
+                                    <option>自动驾驶/智能汽车</option><option>航空航天/低空经济</option><option>新材料</option>
+                                    <option>其他</option>
+                                </select>
+                            </div>
+                            <div class="form-group"><label>融资轮次</label>
+                                <select id="ds-round"><option value="">AI 自动识别</option>
+                                    <option>天使轮</option><option>Pre-A</option><option>A轮</option><option>A+轮</option>
+                                    <option>B轮</option><option>C轮</option><option>D轮</option><option>Pre-IPO</option>
+                                </select>
+                            </div>
+                            <div class="form-group"><label>交易类型</label>
+                                <select id="ds-deal-type"><option value="">AI 自动识别</option>
+                                    <option>少数股权投资</option><option>成长型股权</option><option>控股收购</option>
+                                    <option>增值并购(Add-on)</option><option>重组/Recap</option><option>分拆/Carve-out</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group" style="margin-top:12px">
+                            <label>已知关注点</label>
+                            <input type="text" id="ds-concerns" autocomplete="off"
+                                   placeholder="例如：估值偏高、客户集中度、团队不稳定...">
+                        </div>
                     </div>
 
                     <!-- Comps: valuation-focused -->
@@ -414,6 +451,7 @@
                     <button class="type-tab" data-type="memo" onclick="filterByType('memo')">&#128221; 立项报告</button>
                     <button class="type-tab" data-type="financial" onclick="filterByType('financial')">&#128200; 财务分析</button>
                     <button class="type-tab" data-type="comps" onclick="filterByType('comps')">&#128185; 二级 Comps</button>
+                    <button class="type-tab" data-type="dealscreen" onclick="filterByType('dealscreen')">&#9889; 项目快筛</button>
                     <button class="type-tab" data-type="industry" onclick="filterByType('industry')">&#128202; 行业研究</button>
                 </div>
                 <div class="list-toolbar">

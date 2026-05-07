@@ -289,6 +289,8 @@ func buildTitle(config model.ReportConfig) string {
 		typeName = "财务分析"
 	case model.TypeComps:
 		typeName = "二级市场Comps分析"
+	case model.TypeDealScreen:
+		typeName = "项目快筛"
 	}
 	return config.Topic + " - " + typeName
 }
