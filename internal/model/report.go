@@ -46,6 +46,7 @@ type UploadedFile struct {
 	Name     string `json:"name"`
 	Size     int64  `json:"size"`
 	MimeType string `json:"mime_type"`
+	Category string `json:"category,omitempty"` // BP, 财务报表, CIM, Term Sheet, etc.
 	Text     string `json:"text,omitempty"`
 }
 
@@ -133,10 +134,17 @@ type CreateReportRequest struct {
 	CustomNotes   string         `json:"custom_notes"`
 	UseFeishu     bool           `json:"use_feishu"`
 	FileIDs       []string       `json:"file_ids"`
+	FileRefs      []FileRef      `json:"file_refs,omitempty"` // preferred: id + category
 	Assignees     []Assignee     `json:"assignees"`
 	ProjectInfo   *ProjectInfo   `json:"project_info,omitempty"`
 	FinancialInfo *FinancialInfo `json:"financial_info,omitempty"`
 	IndustryInfo  *IndustryInfo  `json:"industry_info,omitempty"`
+}
+
+// FileRef pairs a file ID with a user-chosen category label.
+type FileRef struct {
+	ID       string `json:"id"`
+	Category string `json:"category"`
 }
 
 // UpdateReportRequest is the API request body for updating a report.

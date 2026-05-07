@@ -580,11 +580,15 @@ func buildUserPrompt(config model.ReportConfig) string {
 		sb.WriteString("深度：详尽深度分析，尽可能全面详细。\n")
 	}
 
-	// Attach uploaded file contents
+	// Attach uploaded file contents (with category labels when available)
 	if len(config.Files) > 0 {
 		sb.WriteString("\n\n===== 以下是项目提供的材料，请基于这些材料进行分析 =====\n\n")
 		for i, f := range config.Files {
-			sb.WriteString(fmt.Sprintf("--- 材料 %d: %s ---\n", i+1, f.Name))
+			label := f.Name
+			if f.Category != "" {
+				label = fmt.Sprintf("[%s] %s", f.Category, f.Name)
+			}
+			sb.WriteString(fmt.Sprintf("--- 材料 %d: %s ---\n", i+1, label))
 			if f.Text != "" {
 				sb.WriteString(f.Text)
 			} else {

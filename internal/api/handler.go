@@ -111,11 +111,22 @@ func (h *Handler) CreateReport(w http.ResponseWriter, r *http.Request) {
 		IndustryInfo:  req.IndustryInfo,
 	}
 
-	// Attach uploaded files
-	for _, fid := range req.FileIDs {
-		uf := GetUploadedFile(fid)
-		if uf != nil {
-			config.Files = append(config.Files, *uf)
+	// Attach uploaded files (prefer file_refs with category, fallback to file_ids)
+	if len(req.FileRefs) > 0 {
+		for _, ref := range req.FileRefs {
+			uf := GetUploadedFile(ref.ID)
+			if uf != nil {
+				f := *uf
+				f.Category = ref.Category
+				config.Files = append(config.Files, f)
+			}
+		}
+	} else {
+		for _, fid := range req.FileIDs {
+			uf := GetUploadedFile(fid)
+			if uf != nil {
+				config.Files = append(config.Files, *uf)
+			}
 		}
 	}
 

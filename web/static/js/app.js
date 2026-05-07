@@ -305,6 +305,18 @@ document.addEventListener('click', function(e) {
 
 // ===== File Upload =====
 let uploadedFileIDs = [];
+const fileCategories = {
+    '': '选择分类...',
+    'BP': 'BP / 商业计划书',
+    '财务报表': '财务报表 / Datapack',
+    'CIM': 'CIM / Teaser',
+    'Term Sheet': 'Term Sheet / 交易条款',
+    '尽调报告': '尽调报告',
+    '管理层简历': '管理层简历',
+    '行业研究': '行业研究',
+    '其他': '其他',
+};
+let fileCategoryMap = {}; // fileId -> category
 function handleFileSelect(event) {
     const files = event.target.files;
     if (files.length > 0) uploadFiles(files);
@@ -409,15 +421,20 @@ function uploadFiles(files) {
 
         for (const uf of data) {
             uploadedFileIDs.push(uf.id);
+            fileCategoryMap[uf.id] = '';
             const el = document.createElement('div');
             el.className = 'file-item';
             el.dataset.fileId = uf.id;
             const textLen = uf.text ? uf.text.length : 0;
+            const catOpts = Object.entries(fileCategories).map(([k, v]) =>
+                '<option value="' + escapeHtml(k) + '">' + escapeHtml(v) + '</option>'
+            ).join('');
             el.innerHTML = `
                 <div class="file-item-row">
                     <span class="file-item-name">${escapeHtml(uf.name)}</span>
                     <span class="file-item-size">${formatFileSize(uf.size)}</span>
-                    <span class="file-item-status success">${textLen > 0 ? '已提取 ' + textLen + ' 字' : '已上传'}</span>
+                    <select class="file-category-select" onchange="setFileCategory('${uf.id}', this.value)">${catOpts}</select>
+                    <span class="file-item-status success">${textLen > 0 ? textLen + ' 字' : '✓'}</span>
                     <button type="button" class="file-item-remove" onclick="removeFile('${uf.id}', this)">&#10005;</button>
                 </div>
             `;
@@ -434,7 +451,12 @@ function uploadFiles(files) {
 
 function removeFile(fileId, btn) {
     uploadedFileIDs = uploadedFileIDs.filter(id => id !== fileId);
+    delete fileCategoryMap[fileId];
     btn.closest('.file-item').remove();
+}
+
+function setFileCategory(fileId, category) {
+    fileCategoryMap[fileId] = category;
 }
 
 function formatFileSize(bytes) {
@@ -478,7 +500,7 @@ async function handleSubmit(event) {
             topic, direction, depth,
             custom_notes: customNotes,
             use_feishu: useFeishu,
-            file_ids: uploadedFileIDs,
+            file_refs: uploadedFileIDs.map(id => ({ id, category: fileCategoryMap[id] || '' })),
             assignees: selectedAssignees,
         };
 
@@ -567,6 +589,7 @@ async function handleSubmit(event) {
         form.reset();
         form.querySelector('input[name="depth"][value="standard"]').checked = true;
         uploadedFileIDs = [];
+        fileCategoryMap = {};
         document.getElementById('file-list').innerHTML = '';
         selectedAssignees = [];
         renderAssigneeTags();
