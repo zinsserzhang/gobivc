@@ -1,0 +1,142 @@
+package main
+
+import (
+	"context"
+	"log"
+	"net/http"
+	"os"
+	"os/signal"
+	"path/filepath"
+	"strings"
+	"syscall"
+	"time"
+
+	"github.com/zinsserzhang/gobivc/internal/api"
+	"github.com/zinsserzhang/gobivc/internal/auth"
+	"github.com/zinsserzhang/gobivc/internal/config"
+	"github.com/zinsserzhang/gobivc/internal/feishu"
+	"github.com/zinsserzhang/gobivc/internal/qveris"
+	"github.com/zinsserzhang/gobivc/internal/service"
+	"github.com/zinsserzhang/gobivc/internal/store"
+)
+
+func main() {
+	cfg := config.Load()
+
+	// Initialize storage
+	if err := os.MkdirAll(cfg.DataDir, 0755); err != nil {
+		log.Fatalf("Failed to create data directory: %v", err)
+	}
+
+	dbPath := filepath.Join(cfg.DataDir, "gobivc.db")
+	sqliteStore, err := store.NewSQLiteStore(dbPath)
+	if err != nil {
+		log.Fatalf("Failed to initialize database: %v", err)
+	}
+	defer sqliteStore.Close()
+
+	if err := sqliteStore.RecoverPendingReports(); err != nil {
+		log.Printf("WARNING: failed to recover pending reports: %v", err)
+	}
+
+	// Initialize AI generator
+	var generator service.AIGenerator
+	switch cfg.AIProvider {
+	case config.ProviderClaude:
+		generator = service.NewClaudeGenerator(cfg.AIAPIKey, cfg.AIModel, cfg.AIBaseURL)
+	default:
+		generator = service.NewOpenAIGenerator(cfg.AIAPIKey, cfg.AIModel, cfg.AIBaseURL)
+	}
+
+	// Initialize Feishu CLI client (for contacts + folder listing)
+	feishuClient := feishu.NewClient(cfg.FeishuFolderToken)
+	feishuClient.CheckAvailable(context.Background())
+	api.FeishuEnabled = feishuClient.IsConfigured()
+
+	// Initialize Qveris client (financial data)
+	qverisClient := qveris.NewClient(cfg.QverisAPIKey)
+	api.QverisEnabled = qverisClient.IsConfigured()
+	if qverisClient.IsConfigured() {
+		log.Printf("Qveris.ai integration: enabled")
+	} else {
+		log.Printf("Qveris.ai integration: NOT configured (Comps 分析将不可用)")
+	}
+
+	// Initialize auth subsystem (Feishu OAuth web login, whitelist, sessions)
+	authStore, err := auth.NewStore(sqliteStore.DB())
+	if err != nil {
+		log.Fatalf("Failed to initialize auth store: %v", err)
+	}
+	whitelist := auth.NewWhitelist(cfg.FeishuWhitelistFile)
+
+	var oauthClient *auth.OAuthClient
+	var authManager *auth.Manager
+	var authHTTP *auth.HTTPHandler
+	if cfg.FeishuAppID != "" && cfg.FeishuAppSecret != "" && cfg.FeishuRedirectURL != "" {
+		oauthClient = auth.NewOAuthClient(cfg.FeishuAppID, cfg.FeishuAppSecret, cfg.FeishuRedirectURL)
+		cookieSecure := strings.HasPrefix(cfg.FeishuRedirectURL, "https://")
+		authManager = auth.NewManager(authStore, whitelist, oauthClient, cookieSecure)
+		authHTTP = auth.NewHTTPHandler(authManager)
+		rootCtx, cancelCleanup := context.WithCancel(context.Background())
+		defer cancelCleanup()
+		authManager.StartCleanupLoop(rootCtx)
+		log.Printf("Feishu web login: enabled (redirect=%s, cookie.Secure=%v)", cfg.FeishuRedirectURL, cookieSecure)
+	} else {
+		log.Printf("Feishu web login: NOT configured — all /api routes will reject requests except service-account Bearer token")
+	}
+
+	// Initialize service layer
+	reportService := service.NewReportService(sqliteStore, generator, feishuClient, qverisClient)
+
+	// Initialize API handler and router
+	handler := api.NewHandler(reportService, feishuClient, oauthClient)
+	router := api.NewRouter(handler, authHTTP)
+
+	middlewares := []api.Middleware{
+		api.RecoverMiddleware,
+		api.LoggingMiddleware,
+		api.CORSMiddleware(cfg.AllowedOrigin),
+	}
+	if authManager != nil {
+		middlewares = append(middlewares, authManager.RequireSession(cfg.APIToken))
+	} else {
+		// Fallback: if auth not configured, keep legacy Bearer-token gate.
+		middlewares = append(middlewares, api.AuthMiddleware(cfg.APIToken))
+	}
+
+	httpHandler := api.Chain(router, middlewares...)
+
+	addr := ":" + cfg.Port
+	srv := &http.Server{
+		Addr:              addr,
+		Handler:           httpHandler,
+		ReadHeaderTimeout: 10 * time.Second,
+		WriteTimeout:      15 * time.Minute,
+		IdleTimeout:       2 * time.Minute,
+	}
+
+	go func() {
+		log.Printf("GobiVC server starting on http://localhost%s", addr)
+		log.Printf("AI provider: %s, model: %s", cfg.AIProvider, cfg.AIModel)
+		log.Printf("Database: %s", dbPath)
+		if feishuClient.IsConfigured() {
+			log.Printf("Feishu integration: enabled")
+		}
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Server failed: %v", err)
+		}
+	}()
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	log.Println("Shutting down server...")
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Printf("Server forced to shutdown: %v", err)
+	}
+	log.Println("Server exited")
+}

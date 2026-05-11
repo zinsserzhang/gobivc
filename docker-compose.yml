@@ -1,0 +1,43 @@
+services:
+  gobivc:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - AI_PROVIDER=${AI_PROVIDER:-openai}
+      - AI_API_KEY=${AI_API_KEY}
+      - AI_MODEL=${AI_MODEL:-MiniMax-M2.7}
+      - AI_BASE_URL=${AI_BASE_URL:-https://api.minimaxi.com/v1}
+      - API_TOKEN=${API_TOKEN}
+      - ALLOWED_ORIGIN=${ALLOWED_ORIGIN:-*}
+      - PORT=8080
+      - DATA_DIR=/app/data
+      # Feishu folder
+      - FEISHU_FOLDER_TOKEN=${FEISHU_FOLDER_TOKEN}
+      # Feishu OAuth (web login). FEISHU_REDIRECT_URL must match the
+      # redirect URI registered in the 自建应用 网页应用 config,
+      # e.g. https://gobivp.top/api/auth/callback
+      - FEISHU_APP_ID=${FEISHU_APP_ID}
+      - FEISHU_APP_SECRET=${FEISHU_APP_SECRET}
+      - FEISHU_REDIRECT_URL=${FEISHU_REDIRECT_URL}
+      - FEISHU_WHITELIST_FILE=${FEISHU_WHITELIST_FILE:-/app/data/whitelist.json}
+      # Qveris.ai (financial data for Comps)
+      - QVERIS_API_KEY=${QVERIS_API_KEY}
+      # Legacy Claude support (when AI_PROVIDER=claude)
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - ANTHROPIC_MODEL=${ANTHROPIC_MODEL}
+      - ANTHROPIC_BASE_URL=${ANTHROPIC_BASE_URL}
+      # Containers have no OS keychain; force lark-cli to read/write
+      # app_secret as plaintext in config.json instead of the host keychain.
+      - LARK_CLI_KEYCHAIN_DISABLED=1
+    volumes:
+      - gobivc-data:/app/data
+      # Mount lark-cli config from host for Feishu integration
+      - ${HOME}/.lark-cli:/home/gobivc/.lark-cli
+      # Mount web assets from host so HTML/CSS/JS edits take effect on `git pull`
+      # without rebuilding the image. Go binary changes still need --build.
+      - ./web:/app/web:ro
+    restart: unless-stopped
+
+volumes:
+  gobivc-data:
